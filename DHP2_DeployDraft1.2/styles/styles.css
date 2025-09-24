@@ -5980,13 +5980,13 @@ body[data-page="analyzer"] .loading-indicator::before {
 
 body[data-page="analyzer"] .analyzer-summary-grid {
   display: grid;
-  gap: 1rem;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 0.9rem;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
 body[data-page="analyzer"] .analyzer-chip {
   position: relative;
-  padding: 1.1rem 1.2rem;
+  padding: 1rem 1.15rem;
   border-radius: 14px;
   border: 1px solid rgba(128, 138, 189, 0.22);
   background: linear-gradient(135deg, rgba(22, 25, 48, 0.65), rgba(11, 12, 26, 0.65));
@@ -5994,7 +5994,7 @@ body[data-page="analyzer"] .analyzer-chip {
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
-  min-height: 120px;
+  min-height: 112px;
 }
 
 body[data-page="analyzer"] .analyzer-chip::after {
@@ -6017,6 +6017,14 @@ body[data-page="analyzer"] .analyzer-chip .chip-value {
   font-size: 1.45rem;
   font-weight: 700;
   color: var(--color-text-primary);
+  line-height: 1.2;
+}
+
+body[data-page="analyzer"] .analyzer-chip .chip-value--player {
+  font-size: 1.15rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 body[data-page="analyzer"] .analyzer-chip .chip-meta {
@@ -6229,8 +6237,16 @@ body[data-page="analyzer"] .analyzer-leaderboard .empty-row {
 }
 
 @media (max-width: 640px) {
+  body[data-page="analyzer"] .analyzer-summary-grid {
+    gap: 0.65rem;
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  }
   body[data-page="analyzer"] .analyzer-chip {
-    min-height: 110px;
+    padding: 0.85rem 0.95rem;
+    min-height: 96px;
+  }
+  body[data-page="analyzer"] .analyzer-chip .chip-value {
+    font-size: 1.3rem;
   }
   body[data-page="analyzer"] .analyzer-table th,
   body[data-page="analyzer"] .analyzer-table td {
