@@ -5918,36 +5918,6 @@ body[data-page="analyzer"] .analyzer-hero p {
   line-height: 1.6;
 }
 
-body[data-page="analyzer"] .analyzer-hero-controls {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 1rem;
-}
-
-body[data-page="analyzer"] .analyzer-control-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  background: rgba(15, 17, 38, 0.55);
-  border: 1px solid rgba(118, 109, 255, 0.18);
-  border-radius: 12px;
-  padding: 0.6rem 0.75rem;
-}
-
-body[data-page="analyzer"] .analyzer-control-group .control-label {
-  font-size: 0.58rem;
-  text-transform: uppercase;
-  letter-spacing: 0.2em;
-  color: var(--color-text-secondary);
-}
-
-body[data-page="analyzer"] .analyzer-control-group .control-value {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--color-text-primary);
-  margin: 0;
-}
-
 body[data-page="analyzer"] .analyzer-loading {
   display: flex;
   align-items: center;
@@ -6023,15 +5993,17 @@ body[data-page="analyzer"] .analyzer-chip .chip-meta {
   font-size: 0.78rem;
   color: var(--color-text-secondary);
   line-height: 1.35;
+  margin-top: auto;
 }
 
 body[data-page="analyzer"] .analyzer-chip--top-scorer .chip-value {
-  font-size: 1.05rem;
-  line-height: 1.25;
+  font-size: 0.96rem;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 body[data-page="analyzer"] .analyzer-chip--top-scorer .chip-meta {
-  font-size: 0.74rem;
+  font-size: 0.72rem;
 }
 
 @media (max-width: 640px) {
@@ -6101,7 +6073,24 @@ body[data-page="analyzer"] .analyzer-chart {
 }
 
 body[data-page="analyzer"] .analyzer-chart--radar {
-  min-height: 360px;
+  min-height: 380px;
+  padding: 0;
+}
+
+body[data-page="analyzer"] .analyzer-radar-section {
+  padding-top: 1.25rem;
+  gap: 1rem;
+}
+
+@media (max-width: 640px) {
+  body[data-page="analyzer"] .analyzer-radar-section {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+}
+
+body[data-page="analyzer"] .analyzer-radar-section .analyzer-panel-body--stacked {
+  gap: 1rem;
 }
 
 body[data-page="analyzer"] .analyzer-panel-body--stacked {
@@ -6242,6 +6231,43 @@ body[data-page="analyzer"] .analyzer-leaderboard .empty-row {
   text-align: center;
   padding: 1.5rem 0;
   color: var(--color-text-secondary);
+}
+
+body[data-page="analyzer"] .analyzer-leaderboard table th:first-child,
+body[data-page="analyzer"] .analyzer-leaderboard table td:first-child {
+  text-align: center;
+}
+
+body[data-page="analyzer"] .analyzer-leaderboard table th:nth-child(5),
+body[data-page="analyzer"] .analyzer-leaderboard table td:nth-child(5),
+body[data-page="analyzer"] .analyzer-leaderboard table th:nth-child(6),
+body[data-page="analyzer"] .analyzer-leaderboard table td:nth-child(6) {
+  text-align: center;
+}
+
+body[data-page="analyzer"] .analyzer-leaderboard .owner-cell {
+  font-size: 0.78rem;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+body[data-page="analyzer"] .analyzer-leaderboard table td:nth-child(2) {
+  white-space: nowrap;
+}
+
+body[data-page="analyzer"] .app-header {
+  --header-control-height: 1.65rem;
+  --header-field-max-width: 140px;
+}
+
+body[data-page="analyzer"] #usernameInput {
+  font-size: 0.62rem;
+  padding: 0.16rem 0.4rem;
+}
+
+body[data-page="analyzer"] #leagueSelect {
+  font-size: 0.66rem;
+  padding: 0.22rem 1rem 0.22rem 0.4rem;
 }
 
 @media (max-width: 640px) {
