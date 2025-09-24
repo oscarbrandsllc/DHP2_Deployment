@@ -2006,13 +2006,6 @@ const SEASON_META_HEADERS = {
             container.appendChild(table);
             modalBody.appendChild(container);
             modalBody.scrollLeft = 0;
-
-            // Set player vitals width to match summary chips
-            const summaryChipsWidth = summaryChipsContainer.offsetWidth;
-            const playerVitalsElement = document.querySelector('.player-vitals--modal');
-            if (playerVitalsElement) {
-                playerVitalsElement.style.width = `${summaryChipsWidth}px`;
-            }
         }
 
         async function handlePlayerCompare(e) {

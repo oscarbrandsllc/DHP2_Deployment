@@ -3110,6 +3110,7 @@ body[data-page="rosters"] #secondary-header-row #analyzeLeagueButton.active {
     border: 1px solid #ffffff10;
     padding: 4px 7px;
     border-radius: 8px;
+    width: 100%;
     }
     
     
@@ -5404,6 +5405,15 @@ body[data-page="research"] .app-header {
     font-size: 0.78rem;
     line-height: 1.28;
     color: rgba(232, 235, 255, 0.95);
+  }
+}
+
+@media (max-width: 540px) {
+  .player-vitals--modal .player-vitals__value {
+    font-size: 0.8rem;
+  }
+  .player-vitals--modal .player-vitals__label {
+    font-size: 0.45rem;
   }
 }
 
