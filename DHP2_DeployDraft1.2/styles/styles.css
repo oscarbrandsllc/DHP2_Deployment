@@ -228,8 +228,8 @@
             flex-direction: column;
             gap: 0.25rem;
             --header-icon-size: 2.25rem;
-            --header-control-height: 2.2rem;
-            --header-field-max-width: 160px;
+            --header-control-height: 1.85rem;
+            --header-field-max-width: 120px;
             --header-switcher-width: 12.25rem;
         }
 
@@ -441,7 +441,7 @@
                 /* · · Row 1 · · */
                 .username-area {
                     flex-grow: 1;
-                    min-width: 100px; /* prevent it from getting too small */
+                    min-width: 90px; /* prevent it from getting too small */
                     max-width: var(--header-field-max-width);
                     padding: 0;
                     height: var(--header-control-height);
@@ -458,8 +458,8 @@
           backdrop-filter: blur(4px) saturate(110%);
           box-shadow: inset 0 1px 1px rgba(255,255,255,0.05);
           color: #c4c8eaba;
-          padding: 0.23rem 0.5rem;
-          font-size: 0.7rem;
+          padding: 0.18rem 0.45rem;
+          font-size: 0.65rem;
           font-weight: 300;
           width: 100%;
           height: 100%;
@@ -510,8 +510,8 @@
             -webkit-backdrop-filter: blur(4px) saturate(110%);
             backdrop-filter: blur(4px) saturate(110%);
             box-shadow: inset 0 1px 1px rgba(255,255,255,0.05);
-            padding: 0.32rem 1.25rem 0.32rem 0.5rem;
-            font-size: 0.75rem;
+            padding: 0.26rem 1.1rem 0.26rem 0.45rem;
+            font-size: 0.7rem;
             color: #c4c8eaba;
             font-weight: 300;
             width: 100%;
@@ -6026,8 +6026,9 @@ body[data-page="analyzer"] .analyzer-chip .chip-meta {
 }
 
 body[data-page="analyzer"] .analyzer-chip--top-scorer .chip-value {
-  font-size: 1.05rem;
-  line-height: 1.25;
+  font-size: 0.95rem;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 body[data-page="analyzer"] .analyzer-chip--top-scorer .chip-meta {
@@ -6102,6 +6103,14 @@ body[data-page="analyzer"] .analyzer-chart {
 
 body[data-page="analyzer"] .analyzer-chart--radar {
   min-height: 360px;
+}
+
+body[data-page="analyzer"] .analyzer-radar-section {
+  gap: 0.9rem;
+}
+
+body[data-page="analyzer"] .analyzer-radar-section .analyzer-panel-body {
+  gap: 0.75rem;
 }
 
 body[data-page="analyzer"] .analyzer-panel-body--stacked {
@@ -6242,6 +6251,19 @@ body[data-page="analyzer"] .analyzer-leaderboard .empty-row {
   text-align: center;
   padding: 1.5rem 0;
   color: var(--color-text-secondary);
+}
+
+body[data-page="analyzer"] .analyzer-leaderboard .analyzer-table th:first-child,
+body[data-page="analyzer"] .analyzer-leaderboard .analyzer-table td:first-child {
+  text-align: center;
+}
+
+body[data-page="analyzer"] .analyzer-leaderboard .analyzer-table td:nth-child(2) {
+  white-space: nowrap;
+}
+
+body[data-page="analyzer"] .analyzer-leaderboard .analyzer-table td:nth-child(4) {
+  font-size: 0.8rem;
 }
 
 @media (max-width: 640px) {
