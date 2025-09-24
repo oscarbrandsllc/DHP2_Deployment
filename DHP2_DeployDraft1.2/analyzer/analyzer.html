@@ -19,6 +19,7 @@
   <link rel="shortcut icon" href="../assets/icons/favicon.ico?v=20250827002411?v=20250826235225" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
 </head>
 <body data-page="analyzer" class="p-2 sm:p-4">
   <div aria-hidden="true" id="starfield">
@@ -140,12 +141,12 @@
           <header class="analyzer-panel-header">
             <div>
               <h2>Positional Strength</h2>
-              <p>Compare your top duo at each position against the league average.</p>
+              <p>See optimized starters for every required slot against the league average.</p>
             </div>
           </header>
           <div class="analyzer-panel-body analyzer-panel-body--stacked">
             <div class="chart-container analyzer-chart analyzer-chart--radar">
-              <canvas id="radarChart" aria-label="Positional strength radar" role="img"></canvas>
+              <div id="radarChart" aria-label="Positional strength radar" role="img"></div>
             </div>
             <div class="analyzer-standings" aria-live="polite">
               <div class="analyzer-standings-header">
