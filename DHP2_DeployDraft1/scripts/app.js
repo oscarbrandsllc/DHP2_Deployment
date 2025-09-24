@@ -1062,7 +1062,7 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
             'YAC': 'rec_yar',
             'YPR': 'ypr',
             'RR': 'rr',
-            'TS%RR': 'ts_per_rr',
+            'TS%': 'ts_per_rr',
             'YPRR': 'yprr',
             '1DRR': 'first_down_rec_rate',
             'IMP': 'imp',
@@ -3252,7 +3252,7 @@ const SEASON_META_HEADERS = {
         }
 
         function getPlayerVitals(playerId) {
-            const fallback = { age: '—', height: '—', weight: '—' };
+            const fallback = { age: '—', exp: '—', ry: '—', height: '—', weight: '—' };
             const playerData = state.players?.[playerId];
             if (!playerData) return fallback;
 
@@ -3287,6 +3287,34 @@ const SEASON_META_HEADERS = {
                             return String(age);
                         }
                     }
+                }
+
+                return null;
+            };
+
+            const parseExperience = () => {
+                const candidates = collect(
+                    playerData.years_exp,
+                    playerData.metadata?.years_exp,
+                    playerData.metadata?.player_experience
+                );
+
+                for (const candidate of candidates) {
+                    if (typeof candidate === 'number') {
+                        if (!Number.isFinite(candidate)) continue;
+                        return candidate <= 0 ? 'R' : String(candidate);
+                    }
+
+                    const str = String(candidate).trim();
+                    if (!str) continue;
+                    if (/^r(ookie)?$/i.test(str)) return 'R';
+
+                    const numeric = Number.parseInt(str, 10);
+                    if (Number.isFinite(numeric)) {
+                        return numeric <= 0 ? 'R' : String(numeric);
+                    }
+
+                    return str.toUpperCase();
                 }
 
                 return null;
@@ -3383,8 +3411,34 @@ const SEASON_META_HEADERS = {
                 return null;
             };
 
+            const parseRookieYear = () => {
+                const candidates = collect(
+                    playerData.metadata?.rookie_year,
+                    playerData.rookie_year,
+                    playerData.metadata?.player_rookie_year
+                );
+
+                for (const candidate of candidates) {
+                    const numeric = Number.parseInt(candidate, 10);
+                    if (Number.isFinite(numeric) && numeric >= 1900 && numeric <= 2100) {
+                        return String(numeric);
+                    }
+                }
+
+                if (typeof deriveRookieYear === 'function') {
+                    const derived = deriveRookieYear(playerData);
+                    if (Number.isFinite(derived)) {
+                        return String(derived);
+                    }
+                }
+
+                return null;
+            };
+
             return {
                 age: parseAge() ?? '—',
+                exp: parseExperience() ?? '—',
+                ry: parseRookieYear() ?? '—',
                 height: parseHeight() ?? '—',
                 weight: parseWeight() ?? '—'
             };
@@ -3396,6 +3450,8 @@ const SEASON_META_HEADERS = {
 
             const items = [
                 { label: 'AGE', value: vitals.age },
+                { label: 'EXP', value: vitals.exp },
+                { label: 'RY', value: vitals.ry },
                 { label: 'HEIGHT', value: vitals.height },
                 { label: 'WEIGHT', value: vitals.weight }
             ];
