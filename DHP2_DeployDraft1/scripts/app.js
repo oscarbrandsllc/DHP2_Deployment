@@ -1062,7 +1062,7 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
             'YAC': 'rec_yar',
             'YPR': 'ypr',
             'RR': 'rr',
-            'TS%RR': 'ts_per_rr',
+            'TS%': 'ts_per_rr',
             'YPRR': 'yprr',
             '1DRR': 'first_down_rec_rate',
             'IMP': 'imp',
@@ -2006,6 +2006,13 @@ const SEASON_META_HEADERS = {
             container.appendChild(table);
             modalBody.appendChild(container);
             modalBody.scrollLeft = 0;
+
+            // Set player vitals width to match summary chips
+            const summaryChipsWidth = summaryChipsContainer.offsetWidth;
+            const playerVitalsElement = document.querySelector('.player-vitals--modal');
+            if (playerVitalsElement) {
+                playerVitalsElement.style.width = `${summaryChipsWidth}px`;
+            }
         }
 
         async function handlePlayerCompare(e) {
@@ -3383,10 +3390,24 @@ const SEASON_META_HEADERS = {
                 return null;
             };
 
+            const parseYearsExperience = () => {
+                const exp = playerData.years_exp;
+                if (exp === null || exp === undefined) return '—';
+                return String(exp);
+            };
+
+            const parseRookieYear = () => {
+                const rookieYear = playerData.rookie_year;
+                if (!rookieYear || rookieYear === '0') return '—';
+                return String(rookieYear);
+            };
+
             return {
                 age: parseAge() ?? '—',
                 height: parseHeight() ?? '—',
-                weight: parseWeight() ?? '—'
+                weight: parseWeight() ?? '—',
+                exp: parseYearsExperience(),
+                ry: parseRookieYear()
             };
         }
 
@@ -3397,7 +3418,9 @@ const SEASON_META_HEADERS = {
             const items = [
                 { label: 'AGE', value: vitals.age },
                 { label: 'HEIGHT', value: vitals.height },
-                { label: 'WEIGHT', value: vitals.weight }
+                { label: 'WEIGHT', value: vitals.weight },
+                { label: 'EXP', value: vitals.exp },
+                { label: 'RY', value: vitals.ry }
             ];
 
             items.forEach(({ label, value }) => {

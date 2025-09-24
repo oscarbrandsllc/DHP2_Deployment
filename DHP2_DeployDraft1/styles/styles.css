@@ -3168,6 +3168,7 @@ body[data-page="rosters"] #secondary-header-row #analyzeLeagueButton.active {
 
     #modal-summary-chips {
       display: flex;
+      justify-content: center;
       gap: 1rem;
       flex-wrap: nowrap;
     }
@@ -3235,6 +3236,7 @@ body[data-page="rosters"] #secondary-header-row #analyzeLeagueButton.active {
 
 /* · · GameLogs Summary Chips · · */
 #game-logs-modal .gamelogs-summary-chip {
+    flex: 1;
     padding: 0.25rem 0.55rem;
     text-align: center;
     min-width: auto;
