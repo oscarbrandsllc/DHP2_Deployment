@@ -1079,6 +1079,7 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
             }
             labels['fpts'] = 'FPTS'; // computed, not from sheet
             labels['ppg'] = 'PPG';   // keep if used elsewhere
+            labels['ts_per_rr'] = 'TS%';
             return labels;
         }
 
