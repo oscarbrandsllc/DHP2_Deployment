@@ -50,14 +50,31 @@
 
     const POSITION_ORDER = ['QB', 'RB', 'WR', 'TE'];
 
-    const LINEUP_COLORS = {
-      QB: ['rgba(118, 109, 255, 0.95)', 'rgba(118, 109, 255, 0.35)'],
-      RB: ['rgba(0, 245, 160, 0.9)', 'rgba(0, 245, 160, 0.3)'],
-      WR: ['rgba(66, 194, 255, 0.9)', 'rgba(66, 194, 255, 0.32)'],
-      TE: ['rgba(255, 175, 0, 0.9)', 'rgba(255, 175, 0, 0.32)'],
-      FLEX: ['rgba(186, 101, 151, 0.9)', 'rgba(186, 101, 151, 0.32)'],
-      SUPER_FLEX: ['rgba(255, 58, 117, 0.9)', 'rgba(255, 58, 117, 0.32)'],
-      Picks: ['rgba(236, 217, 120, 0.9)', 'rgba(236, 217, 120, 0.35)'],
+    const LINEUP_VALUE_COLORS = {
+      QB: '#15607a',
+      RB: '#0c8184',
+      WR: '#0da0a4',
+      TE: '#09bb9f',
+      FLEX: '#2ad2a0',
+      SUPER_FLEX: '#37ebb5',
+      DEFAULT: '#37ebb5',
+    };
+    const LINEUP_PPG_COLORS = {
+      QB: '#003c63',
+      RB: '#005d91',
+      WR: '#006da2',
+      TE: '#007bb4',
+      FLEX: '#008cd1',
+      SUPER_FLEX: '#00a3ff',
+      DEFAULT: '#00a3ff',
+    };
+    const OVERALL_VALUE_COLORS = {
+      QB: '#3700B3',
+      RB: '#4c02de',
+      WR: '#6300ff',
+      TE: '#7100ff',
+      Picks: '#8700ff',
+      DEFAULT: '#9400ff',
     };
 
     const RADAR_SLOT_TYPES = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'SUPER_FLEX'];
@@ -130,8 +147,9 @@
 
             const { x, y } = point.tooltipPosition();
             const angle = Math.atan2(y - scale.yCenter, x - scale.xCenter);
-            const offsetX = Math.cos(angle) * 12;
-            const offsetY = Math.sin(angle) * 12;
+            const offset = dataset.labelOffset ?? options?.offset ?? 18;
+            const offsetX = Math.cos(angle) * offset;
+            const offsetY = Math.sin(angle) * offset;
 
             const ctx = chart.ctx;
             ctx.save();
@@ -146,7 +164,95 @@
       },
     };
 
-    Chart.register(radarBackgroundPlugin, radarPointLabelsPlugin);
+    const barTotalsPlugin = {
+      id: 'analyzerBarTotals',
+      afterDatasetsDraw(chart, args, opts) {
+        const options = opts || {};
+        if (options.display === false) return;
+        const { ctx, chartArea } = chart;
+        const metas = chart.getSortedVisibleDatasetMetas();
+        if (!metas.length) return;
+
+        const indexAxis = chart.options?.indexAxis || 'x';
+        const valueAxisKey = indexAxis === 'y' ? 'x' : 'y';
+        const indexAxisKey = indexAxis === 'y' ? 'y' : 'x';
+        const valueScale = chart.scales?.[valueAxisKey];
+        const indexScale = chart.scales?.[indexAxisKey];
+        if (!valueScale || !indexScale) return;
+
+        const dataLength = Math.max(
+          0,
+          ...metas.map((meta) => (chart.data.datasets?.[meta.index]?.data || []).length),
+        );
+        if (!dataLength) return;
+
+        const totals = new Array(dataLength).fill(0);
+        metas.forEach((meta) => {
+          const dataset = chart.data.datasets?.[meta.index];
+          if (!dataset?.data) return;
+          dataset.data.forEach((value, idx) => {
+            if (!Number.isFinite(value)) return;
+            totals[idx] += value;
+          });
+        });
+
+        const formatter = typeof options.formatter === 'function'
+          ? options.formatter
+          : ((value) => value);
+        const font = options.font || '600 11px "Product Sans", "Google Sans", sans-serif';
+        const color = options.color || '#EAEBF0';
+        const padding = options.padding ?? 6;
+
+        ctx.save();
+        ctx.font = font;
+        ctx.fillStyle = color;
+        ctx.textBaseline = 'middle';
+
+        totals.forEach((total, index) => {
+          if (!Number.isFinite(total)) return;
+          let label = formatter(total, index, chart);
+          if (label === null || label === undefined) return;
+          label = String(label);
+          if (label.length === 0) return;
+
+          const referenceMeta = metas[metas.length - 1];
+          const element = referenceMeta?.data?.[index];
+          const position = typeof element?.tooltipPosition === 'function'
+            ? element.tooltipPosition()
+            : null;
+
+          if (indexAxis === 'y') {
+            const y = position?.y ?? indexScale.getPixelForValue(index);
+            const x = valueScale.getPixelForValue(total);
+            ctx.textAlign = 'left';
+            let drawX = x + padding;
+            const maxX = (chartArea?.right ?? chart.width) - 4;
+            const textWidth = ctx.measureText(label).width;
+            if (drawX + textWidth > maxX) {
+              ctx.textAlign = 'right';
+              drawX = maxX;
+            }
+            ctx.fillText(label, drawX, y);
+          } else {
+            const x = position?.x ?? indexScale.getPixelForValue(index);
+            const y = valueScale.getPixelForValue(total);
+            ctx.textAlign = 'center';
+            let drawY = y - padding;
+            const minY = (chartArea?.top ?? 0) + 10;
+            if (drawY < minY) {
+              drawY = minY;
+            }
+            ctx.textBaseline = 'bottom';
+            ctx.fillText(label, x, drawY);
+            ctx.textBaseline = 'middle';
+          }
+        });
+
+        ctx.restore();
+      },
+    };
+
+    Chart.register(radarBackgroundPlugin, radarPointLabelsPlugin, barTotalsPlugin);
 
     const state = {
       userId: null,
@@ -567,6 +673,8 @@
         const overallPositional = { QB: 0, RB: 0, WR: 0, TE: 0, Picks: 0 };
         const allPlayers = (roster.players || []).map((playerId) => {
           const playerInfo = state.players[playerId];
+          const stats = state.playerStats[playerId] || {};
+          const ppg = stats.ppg ?? (stats.games ? stats.total / (stats.games || 1) : 0);
           const ktc = getKtcValue(playerId);
           const pos = playerInfo?.position;
           if (pos && overallPositional[pos] !== undefined) {
@@ -576,6 +684,7 @@
             id: playerId,
             pos,
             ktc,
+            ppg,
             name: formatPlayerName(playerInfo),
           };
         }).sort((a, b) => b.ktc - a.ktc);
@@ -745,12 +854,12 @@
         if (!availableByPos[player.pos]) {
           availableByPos[player.pos] = [];
         }
-        const value = Number(player.ktc) || 0;
-        availableByPos[player.pos].push({ ...player, ktc: value });
+        const value = Number(player.ppg) || 0;
+        availableByPos[player.pos].push({ ...player, ppg: value });
       });
 
       Object.keys(availableByPos).forEach((pos) => {
-        availableByPos[pos].sort((a, b) => (b.ktc || 0) - (a.ktc || 0));
+        availableByPos[pos].sort((a, b) => (b.ppg || 0) - (a.ppg || 0));
       });
 
       const used = new Set();
@@ -787,7 +896,7 @@
         let bestIndex = null;
         RADAR_FLEX_ELIGIBLE.forEach((pos) => {
           const { player, index } = peekNext(pos);
-          if (player && (!best || (player.ktc || 0) > (best.ktc || 0))) {
+          if (player && (!best || (player.ppg || 0) > (best.ppg || 0))) {
             best = player;
             bestPos = pos;
             bestIndex = index;
@@ -814,7 +923,7 @@
 
         assignments[idx] = {
           ...slot,
-          value: selected?.ktc ?? 0,
+          value: selected?.ppg ?? 0,
           player: selected ? { id: selected.id, name: selected.name } : null,
         };
       });
@@ -964,12 +1073,13 @@
           value: topScorer?.name || '—',
           meta: topScorerMeta,
           accent: topScorer?.total ? 'var(--color-accent-secondary)' : undefined,
+          className: 'analyzer-chip--top-scorer',
         },
       ];
 
       elements.summaryStats.innerHTML = chips
         .map((chip) => `
-          <article class="analyzer-chip">
+          <article class="analyzer-chip${chip.className ? ` ${chip.className}` : ''}">
             <span class="chip-label">${chip.label}</span>
             <span class="chip-value"${chip.accent ? ` style="color: ${chip.accent};"` : ''}>${chip.value}</span>
             <span class="chip-meta">${chip.meta}</span>
@@ -1007,16 +1117,20 @@
 
       const createDatasetForMetric = (metric) => {
         const datasets = [];
+        const palette = metric === 'value' ? LINEUP_VALUE_COLORS : LINEUP_PPG_COLORS;
+        const fallbackColor = palette.DEFAULT;
         SLOT_ORDER.forEach((slot) => {
           const values = teams.map((team) => team.startersBySlot[slot]?.[metric] ?? 0);
           if (!values.some((value) => value > 0)) return;
+          const color = palette[slot] || fallbackColor;
           datasets.push({
             label: SLOT_LABELS[slot] || slot,
             slotKey: slot,
             data: values,
-            backgroundColor: (context) => createGradient(context, LINEUP_COLORS[slot] || LINEUP_COLORS.FLEX),
-            borderColor: 'rgba(255,255,255,0.12)',
-            borderWidth: 1,
+            backgroundColor: color,
+            hoverBackgroundColor: color,
+            borderColor: color,
+            borderWidth: 0,
             borderRadius: 10,
             barPercentage: 0.9,
             categoryPercentage: 0.7,
@@ -1100,18 +1214,12 @@
               },
             },
           },
+          analyzerBarTotals: {
+            formatter,
+            padding: 10,
+          },
         },
       };
-    }
-
-    function createGradient(context, colors = ['rgba(118, 109, 255, 0.8)', 'rgba(118, 109, 255, 0.4)']) {
-      const { chart } = context;
-      const { ctx, chartArea } = chart;
-      if (!chartArea) return colors[0];
-      const gradient = ctx.createLinearGradient(chartArea.left, 0, chartArea.right, 0);
-      gradient.addColorStop(0, colors[0]);
-      gradient.addColorStop(1, colors[1] ?? colors[0]);
-      return gradient;
     }
 
     function createStackedBarChart(canvas, labels, datasets, options) {
@@ -1133,13 +1241,15 @@
         .map((pos) => {
           const values = teams.map((team) => team.overallPositional[pos] || 0);
           if (!values.some((value) => value > 0)) return null;
+          const color = OVERALL_VALUE_COLORS[pos] || OVERALL_VALUE_COLORS.DEFAULT;
           return {
             label: SLOT_LABELS[pos] || pos,
             slotKey: pos,
             data: values,
-            backgroundColor: (context) => createGradient(context, LINEUP_COLORS[pos] || LINEUP_COLORS.FLEX),
-            borderColor: 'rgba(255,255,255,0.1)',
-            borderWidth: 1,
+            backgroundColor: color,
+            hoverBackgroundColor: color,
+            borderColor: color,
+            borderWidth: 0,
             borderRadius: 10,
             barPercentage: 0.9,
             categoryPercentage: 0.7,
@@ -1201,6 +1311,10 @@
                 },
               },
             },
+            analyzerBarTotals: {
+              formatter: formatNumber,
+              padding: 10,
+            },
           },
         },
       );
@@ -1225,7 +1339,7 @@
       });
 
       const maxValue = Math.max(0, ...userData, ...leagueAverages);
-      const scaleStep = maxValue > 5000 ? 1000 : maxValue > 2000 ? 500 : maxValue > 1000 ? 250 : maxValue > 300 ? 100 : 50;
+      const scaleStep = maxValue > 60 ? 10 : maxValue > 35 ? 5 : maxValue > 20 ? 2 : maxValue > 10 ? 1 : 0.5;
       const scaleMax = maxValue > 0 ? roundUpTo(maxValue, scaleStep) : scaleStep * 2;
 
       if (state.charts.radar) {
@@ -1261,7 +1375,8 @@
               pointRadius: 4.5,
               analyzerLabels: true,
               labelColor: '#00F5A0',
-              labelFormatter: (value) => formatNumber(value),
+              labelFormatter: (value) => formatPpg(value),
+              labelOffset: 20,
               order: 2,
             },
           ],
@@ -1284,7 +1399,8 @@
               ticks: { display: false },
               pointLabels: {
                 color: '#EAEBF0',
-                font: { size: 12, weight: '500', family: "'Product Sans', 'Google Sans', sans-serif" },
+                font: { size: 14, weight: '600', family: "'Product Sans', 'Google Sans', sans-serif" },
+                padding: 16,
               },
             },
           },
@@ -1306,6 +1422,7 @@
             },
             analyzerRadarLabels: {
               font: '11px "Product Sans", "Google Sans", sans-serif',
+              offset: 20,
             },
           },
         },
