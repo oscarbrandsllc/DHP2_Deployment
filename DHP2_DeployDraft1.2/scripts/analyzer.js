@@ -231,9 +231,11 @@
           let y = isHorizontal ? center : primaryPixel - offset;
 
           if (isHorizontal) {
-            if (x > chartArea.right - 4) {
-              ctx.textAlign = 'right';
-              x = chartArea.right - 4;
+            const layoutPadding = chart.options?.layout?.padding || 0;
+            const paddingRight = typeof layoutPadding === 'number' ? layoutPadding : layoutPadding.right || 0;
+            const maxX = chart.width - paddingRight - 4;
+            if (x > maxX) {
+              x = maxX;
             }
             y = center;
           } else {
@@ -1007,6 +1009,20 @@
       return `${i}th`;
     }
 
+    function abbreviateFirstName(fullName) {
+      if (typeof fullName !== 'string') return fullName || '';
+      const trimmed = fullName.trim();
+      if (!trimmed) return '';
+      const parts = trimmed.split(/\s+/);
+      if (parts.length === 1) {
+        return parts[0];
+      }
+      const [first, ...rest] = parts;
+      const initial = first ? `${first.charAt(0).toUpperCase()}.` : '';
+      const remainder = rest.join(' ');
+      return remainder ? `${initial} ${remainder}`.trim() : initial;
+    }
+
     function renderSummaryStats(teams) {
       const userTeam = teams.find((team) => team.isUserTeam);
       if (!userTeam) {
@@ -1056,7 +1072,7 @@
           accent: overallRank ? getRankColor(overallRank, totalTeams) : undefined,
         },
         {
-          label: 'Total Roster Value',
+          label: 'TTL Team Value',
           value: formatNumber(userTeam.totalValue),
           meta: 'KTC',
         },
@@ -1079,8 +1095,8 @@
           accent: starterPpgRank ? getRankColor(starterPpgRank, totalTeams) : undefined,
         },
         {
-          label: 'Top Scoring Player',
-          value: topScorer?.name || '—',
+          label: 'Top Scorer',
+          value: topScorer?.name ? abbreviateFirstName(topScorer.name) : '—',
           meta: topScorerMeta,
           accent: topScorer?.total ? 'var(--color-accent-secondary)' : undefined,
           className: 'analyzer-chip--top-scorer',
@@ -1181,10 +1197,10 @@
         interaction: { mode: 'nearest', intersect: false },
         layout: {
           padding: {
-            left: isMobile ? 8 : 16,
-            right: isMobile ? 14 : 18,
-            top: 8,
-            bottom: 8,
+            left: isMobile ? 2 : 4,
+            right: isMobile ? 34 : 46,
+            top: 6,
+            bottom: 6,
           },
         },
         scales: {
@@ -1206,7 +1222,7 @@
             grid: { display: false },
             ticks: {
               color: '#EAEBF0',
-              padding: isMobile ? 4 : 8,
+              padding: isMobile ? 1 : 2,
               font: {
                 size: isMobile ? 10 : 12,
                 family: "'Product Sans', 'Google Sans', sans-serif",
@@ -1259,7 +1275,7 @@
           },
           analyzerBarTotals: {
             enabled: true,
-            offset: 12,
+            offset: isMobile ? 10 : 18,
             formatter: (value) => formatter(value),
             mobileFont: '9px "Product Sans", "Google Sans", sans-serif',
           },
@@ -1294,7 +1310,7 @@
     }
 
     function buildGradientPair(hex) {
-      return [hexToRgba(hex, 0.92), hexToRgba(hex, 0.45)];
+      return [hexToRgba(hex, 0.8), hexToRgba(hex, 0.32)];
     }
 
     function createStackedBarChart(canvas, labels, datasets, options) {
@@ -1336,6 +1352,8 @@
       const maxValue = Math.max(0, ...teams.map((team) => team.totalValue));
       const isMobile = window.matchMedia('(max-width: 640px)').matches;
 
+      const totalsPluginOffset = isMobile ? 10 : 18;
+
       state.charts.overall = createStackedBarChart(
         elements.overallCanvas,
         labels,
@@ -1347,10 +1365,10 @@
           interaction: { mode: 'nearest', intersect: false },
           layout: {
             padding: {
-              left: isMobile ? 8 : 16,
-              right: isMobile ? 14 : 18,
-              top: 8,
-              bottom: 8,
+              left: isMobile ? 2 : 4,
+              right: isMobile ? 34 : 46,
+              top: 6,
+              bottom: 6,
             },
           },
           scales: {
@@ -1372,7 +1390,7 @@
               grid: { display: false },
               ticks: {
                 color: '#EAEBF0',
-                padding: isMobile ? 4 : 8,
+                padding: isMobile ? 1 : 2,
                 font: {
                   size: isMobile ? 10 : 12,
                   family: "'Product Sans', 'Google Sans', sans-serif",
@@ -1418,7 +1436,7 @@
             },
             analyzerBarTotals: {
               enabled: true,
-              offset: 12,
+              offset: totalsPluginOffset,
               formatter: (value) => formatNumber(value),
               mobileFont: '9px "Product Sans", "Google Sans", sans-serif',
             },
@@ -1493,6 +1511,14 @@
           responsive: true,
           maintainAspectRatio: false,
           events: [],
+          layout: {
+            padding: {
+              top: 4,
+              bottom: 4,
+              left: 4,
+              right: 4,
+            },
+          },
           elements: {
             line: { tension: 0.32 },
           },
@@ -1508,7 +1534,7 @@
               pointLabels: {
                 color: '#EAEBF0',
                 font: { size: 13, weight: '600', family: "'Product Sans', 'Google Sans', sans-serif" },
-                padding: 14,
+                padding: 6,
               },
             },
           },
@@ -1526,7 +1552,7 @@
             },
             analyzerRadarLabels: {
               font: '11px "Product Sans", "Google Sans", sans-serif',
-              offset: 20,
+              offset: 18,
             },
           },
         },
@@ -1582,9 +1608,9 @@
         .map((entry, index) => `
           <tr>
             <td>${index + 1}</td>
-            <td>${entry.name}</td>
+            <td>${abbreviateFirstName(entry.name) || '—'}</td>
             <td>${entry.nflTeam}</td>
-            <td>${entry.owner}</td>
+            <td class="owner-cell">${entry.owner}</td>
             <td>${entry.total.toFixed(1)}</td>
             <td>${entry.ppg.toFixed(1)}</td>
           </tr>
