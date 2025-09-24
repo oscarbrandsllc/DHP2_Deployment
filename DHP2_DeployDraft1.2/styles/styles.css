@@ -5865,3 +5865,43 @@ body[data-page="research"] .app-header {
   background: rgb(67 71 87 / 63%);
 }
 
+/* Additional styles for the analyzer page */
+#chart-toggle:checked + .dot {
+    transform: translateX(100%);
+    background-color: #48bb78;
+}
+
+#league-standings table, #league-leaders-table table {
+    width: 100%;
+    border-collapse: collapse;
+    background-color: rgba(13, 14, 35, 0.21);
+    background-image: linear-gradient(rgba(255,255,255, 0.03), rgba(255,255,255, 0.03));
+    backdrop-filter: blur(6px) saturate(120%) brightness(120%);
+    border: 1px solid rgba(128, 138, 189, 0.2);
+    border-radius: 10px;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255, 0.05),
+                inset 0 0 0 2px rgba(200,200,200, 0.025),
+                0 10px 26px rgba(0,0,0, .22);
+}
+
+#league-standings th, #league-standings td, #league-leaders-table th, #league-leaders-table td {
+    padding: 8px;
+    text-align: left;
+    border-bottom: 1px solid rgba(128, 138, 189, 0.2);
+}
+
+#league-standings thead, #league-leaders-table thead {
+    background-color: rgba(20, 28, 58, 0.15);
+}
+
+.chart-container {
+    position: relative;
+    height: 450px;
+    width: 100%;
+    background-color: rgba(13, 14, 35, 0.21);
+    background-image: linear-gradient(rgba(255,255,255, 0.03), rgba(255,255,255, 0.03));
+    backdrop-filter: blur(6px) saturate(120%) brightness(120%);
+    border: 1px solid rgba(128, 138, 189, 0.2);
+    border-radius: 10px;
+    padding: 1rem;
+}
