@@ -3144,20 +3144,21 @@ body[data-page="rosters"] #secondary-header-row #analyzeLeagueButton.active {
     
 
     .player-vitals--compare {
-      margin-top: 0.18rem;
-    gap: 1.3rem;
-    border-radius: 8px;
-    border: 1px solid #fff2;
-    padding: 3px 7px;
+      margin: 0.08rem auto 0;
+      gap: 0.8rem;
+      border-radius: 8px;
+      border: 1px solid #fff2;
+      padding: 2px 6px;
+      align-self: center;
     }
 
     .player-vitals--compare .player-vitals__label {
-      font-size: 0.45rem;
-      letter-spacing: 0.16em;
+      font-size: 0.38rem;
+      letter-spacing: 0.14em;
     }
 
     .player-vitals--compare .player-vitals__value {
-      font-size: 0.75rem;
+      font-size: 0.68rem;
     }
     
     #modal-summary-row {
@@ -3623,7 +3624,6 @@ body[data-page="rosters"] #secondary-header-row #analyzeLeagueButton.active {
         flex-direction: column;
         gap: 0.2rem;
     }
-    
     /* · · Player Comp Table · · */
     .player-comparison-table { 
         width: 100%;
