@@ -2177,8 +2177,6 @@ const SEASON_META_HEADERS = {
 
                 nameHeader.appendChild(nameButton);
                 nameHeader.appendChild(tagsRow);
-                const compareVitals = createPlayerVitalsElement(getPlayerVitals(player.id), { variant: 'compare' });
-                nameHeader.appendChild(compareVitals);
                 headerContainer.appendChild(nameHeader);
 
                 playerNamesRow.appendChild(headerContainer);
@@ -2192,6 +2190,7 @@ const SEASON_META_HEADERS = {
             players.forEach(player => {
                 const summaryChipsContainer = document.createElement('div');
                 summaryChipsContainer.className = 'summary-chips-container';
+                const compareVitals = createPlayerVitalsElement(getPlayerVitals(player.id), { variant: 'compare' });
 
                 const overallRankNumber = typeof player.overallRank === 'number' ? player.overallRank : Number(player.overallRank);
                 const overallRankDisplay = Number.isFinite(overallRankNumber)
@@ -2257,6 +2256,7 @@ const SEASON_META_HEADERS = {
                     </div>
                   </div>
                 `;
+                summaryChipsContainer.insertBefore(compareVitals, summaryChipsContainer.firstChild);
                 summaryChipsRow.appendChild(summaryChipsContainer);
             });
 
