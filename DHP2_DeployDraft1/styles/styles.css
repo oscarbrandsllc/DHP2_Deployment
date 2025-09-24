@@ -3239,6 +3239,7 @@ body[data-page="rosters"] #secondary-header-row #analyzeLeagueButton.active {
     flex: 1;
     padding: 0.25rem 0.55rem;
     text-align: center;
+    white-space: nowrap;
     min-width: auto;
     position: relative;
     background: rgba(0, 0, 0, 0.02);

@@ -3398,8 +3398,14 @@ const SEASON_META_HEADERS = {
 
             const parseRookieYear = () => {
                 const rookieYear = playerData.rookie_year;
-                if (!rookieYear || rookieYear === '0') return '—';
-                return String(rookieYear);
+                if (rookieYear && rookieYear !== '0') {
+                    return String(rookieYear);
+                }
+                const exp = playerData.years_exp;
+                if (exp !== null && exp !== undefined) {
+                    return String(2025 - Number(exp));
+                }
+                return '—';
             };
 
             return {
