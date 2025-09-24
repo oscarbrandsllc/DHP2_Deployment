@@ -25,6 +25,73 @@
       activeLeague: document.getElementById('activeLeague'),
     };
 
+    const STACKED_TOTALS_PLUGIN = {
+      id: 'stackedTotals',
+      afterDatasetsDraw(chart) {
+        const pluginOptions = chart.options?.plugins?.stackedTotals;
+        if (!pluginOptions) return;
+
+        const { ctx, data, chartArea, scales } = chart;
+        const metaSets = chart.getSortedVisibleDatasetMetas();
+        if (!metaSets.length) return;
+
+        const formatter = typeof pluginOptions.formatter === 'function' ? pluginOptions.formatter : (value) => value;
+        const color = pluginOptions.color || '#EAEBF0';
+        const padding = Number.isFinite(pluginOptions.padding) ? pluginOptions.padding : 8;
+        const font = pluginOptions.font || {};
+        const indexAxis = chart.options.indexAxis || 'x';
+        const isHorizontal = indexAxis === 'y';
+
+        ctx.save();
+        ctx.fillStyle = color;
+        ctx.font = `${font.weight || 600} ${font.size || 12}px ${font.family || "'Product Sans', 'Google Sans', sans-serif"}`;
+        ctx.textBaseline = isHorizontal ? 'middle' : 'bottom';
+        ctx.textAlign = isHorizontal ? 'left' : 'center';
+
+        if (!chartArea) {
+          ctx.restore();
+          return;
+        }
+
+        const labelsCount = data.labels?.length ?? 0;
+        for (let index = 0; index < labelsCount; index += 1) {
+          let total = 0;
+          metaSets.forEach((meta) => {
+            const parsed = meta.controller.getParsed(index);
+            if (!parsed) return;
+            const value = isHorizontal ? parsed.x : parsed.y;
+            if (Number.isFinite(value)) {
+              total += value;
+            }
+          });
+
+          if (!total) continue;
+
+          if (isHorizontal) {
+            const xScale = scales.x;
+            const yScale = scales.y;
+            const x = xScale.getPixelForValue(total);
+            const fallbackMeta = metaSets.find((meta) => meta.data?.[index]);
+            const element = fallbackMeta?.data?.[index];
+            const y = element?.y ?? yScale.getPixelForValue(data.labels[index]);
+            const drawX = Math.max(Math.min(x + padding, chartArea.right - 4), chartArea.left + 4);
+            ctx.fillText(formatter(total), drawX, y);
+          } else {
+            const xScale = scales.x;
+            const yScale = scales.y;
+            const x = xScale.getPixelForValue(data.labels[index] ?? index);
+            const y = yScale.getPixelForValue(total);
+            const drawY = Math.max(y - padding, chartArea.top + 12);
+            ctx.fillText(formatter(total), x, drawY);
+          }
+        }
+
+        ctx.restore();
+      },
+    };
+
+    Chart.register(STACKED_TOTALS_PLUGIN);
+
     const SLOT_ORDER = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'SUPER_FLEX'];
     const SLOT_LABELS = {
       QB: 'QB',
@@ -50,14 +117,31 @@
 
     const POSITION_ORDER = ['QB', 'RB', 'WR', 'TE'];
 
-    const LINEUP_COLORS = {
-      QB: ['rgba(255, 58, 117, 0.85)', 'rgba(255, 58, 117, 0.45)'],
-      RB: ['rgba(0, 235, 199, 0.9)', 'rgba(0, 235, 199, 0.45)'],
-      WR: ['rgba(88, 167, 255, 0.9)', 'rgba(88, 167, 255, 0.45)'],
-      TE: ['rgba(180, 105, 255, 0.85)', 'rgba(180, 105, 255, 0.45)'],
-      FLEX: ['rgba(255, 127, 80, 0.85)', 'rgba(255, 127, 80, 0.45)'],
-      SUPER_FLEX: ['rgba(220, 220, 220, 0.85)', 'rgba(220, 220, 220, 0.35)'],
-      Picks: ['rgba(255, 199, 0, 0.85)', 'rgba(255, 199, 0, 0.45)'],
+    const LINEUP_VALUE_COLORS = {
+      QB: '#15607a',
+      RB: '#0c8184',
+      WR: '#0da0a4',
+      TE: '#09bb9f',
+      FLEX: '#2ad2a0',
+      SUPER_FLEX: '#37ebb5',
+    };
+
+    const LINEUP_PPG_COLORS = {
+      QB: '#003c63',
+      RB: '#005d91',
+      WR: '#006da2',
+      TE: '#007bb4',
+      FLEX: '#008cd1',
+      SUPER_FLEX: '#00a3ff',
+    };
+
+    const OVERALL_COLORS = {
+      QB: '#3700B3',
+      RB: '#4c02de',
+      WR: '#6300ff',
+      TE: '#7100ff',
+      Picks: '#8700ff',
+      DEFAULT: '#9400ff',
     };
 
     const state = {
@@ -467,20 +551,26 @@
         });
 
         const overallPositional = { QB: 0, RB: 0, WR: 0, TE: 0, Picks: 0 };
-        const allPlayers = (roster.players || []).map((playerId) => {
-          const playerInfo = state.players[playerId];
-          const ktc = getKtcValue(playerId);
-          const pos = playerInfo?.position;
-          if (pos && overallPositional[pos] !== undefined) {
-            overallPositional[pos] += ktc;
-          }
-          return {
-            id: playerId,
-            pos,
-            ktc,
-            name: formatPlayerName(playerInfo),
-          };
-        }).sort((a, b) => b.ktc - a.ktc);
+        const allPlayers = (roster.players || [])
+          .map((playerId) => {
+            const playerInfo = state.players[playerId];
+            const stats = state.playerStats[playerId] || {};
+            const ktc = getKtcValue(playerId);
+            const pos = playerInfo?.position;
+            if (pos && overallPositional[pos] !== undefined) {
+              overallPositional[pos] += ktc;
+            }
+            return {
+              id: playerId,
+              pos,
+              ktc,
+              name: formatPlayerName(playerInfo),
+              total: stats.total ?? 0,
+              ppg: stats.ppg ?? (stats.games > 0 ? stats.total / stats.games : 0),
+              games: stats.games ?? 0,
+            };
+          })
+          .sort((a, b) => b.ktc - a.ktc);
 
         getOwnedPicks(roster.roster_id, rosters, tradedPicks, leagueInfo).forEach((pick) => {
           overallPositional.Picks += getKtcValue(pick.label);
@@ -685,6 +775,20 @@
           meta: starterValueRank ? `Rank ${starterValueRank}/${totalTeams}` : 'Rank NA',
           accent: starterValueRank ? getRankColor(starterValueRank, totalTeams) : undefined,
         },
+      ];
+
+      const topScorer = userTeam.allPlayers
+        .filter((player) => (player.total || 0) > 0)
+        .sort((a, b) => (b.total || 0) - (a.total || 0))[0];
+
+      chips.push({
+        label: 'Top Scoring Player',
+        value: topScorer ? topScorer.name : '—',
+        meta: topScorer ? `${topScorer.total.toFixed(1)} pts` : 'No scoring data',
+        valueClass: 'chip-value--player',
+      });
+
+      chips.push(
         {
           label: 'Total FPTS',
           value: userTeam.totalFpts.toFixed(1),
@@ -721,13 +825,13 @@
           meta: totalTeams ? `of ${totalTeams}` : '',
           accent: positionalRanks.TE ? getRankColor(positionalRanks.TE, totalTeams) : undefined,
         },
-      ];
+      );
 
       elements.summaryStats.innerHTML = chips
         .map((chip) => `
           <article class="analyzer-chip">
             <span class="chip-label">${chip.label}</span>
-            <span class="chip-value"${chip.accent ? ` style="color: ${chip.accent};"` : ''}>${chip.value}</span>
+            <span class="${['chip-value', chip.valueClass].filter(Boolean).join(' ')}"${chip.accent ? ` style="color: ${chip.accent};"` : ''}>${chip.value}</span>
             <span class="chip-meta">${chip.meta}</span>
           </article>
         `)
@@ -761,16 +865,18 @@
     function buildLineupDatasets(teams) {
       const labels = teams.map((team) => team.teamName);
 
-      const createDatasetForMetric = (metric) => {
+      const createDatasetForMetric = (metric, palette) => {
         const datasets = [];
         SLOT_ORDER.forEach((slot) => {
           const values = teams.map((team) => team.startersBySlot[slot]?.[metric] ?? 0);
           if (!values.some((value) => value > 0)) return;
+          const color = palette[slot] || palette.DEFAULT || '#37ebb5';
           datasets.push({
             label: SLOT_LABELS[slot] || slot,
             slotKey: slot,
             data: values,
-            backgroundColor: (context) => createGradient(context, LINEUP_COLORS[slot] || LINEUP_COLORS.FLEX),
+            backgroundColor: color,
+            hoverBackgroundColor: color,
             borderColor: 'rgba(255,255,255,0.12)',
             borderWidth: 1,
             borderRadius: 10,
@@ -789,8 +895,8 @@
       };
 
       return {
-        value: createDatasetForMetric('value'),
-        ppg: createDatasetForMetric('ppg'),
+        value: createDatasetForMetric('value', { ...LINEUP_VALUE_COLORS, DEFAULT: '#37ebb5' }),
+        ppg: createDatasetForMetric('ppg', { ...LINEUP_PPG_COLORS, DEFAULT: '#00a3ff' }),
       };
     }
 
@@ -856,18 +962,13 @@
               },
             },
           },
+          stackedTotals: {
+            formatter: (value) => formatter(value),
+            font: { size: 11, weight: 600 },
+            padding: 10,
+          },
         },
       };
-    }
-
-    function createGradient(context, colors = ['rgba(118, 109, 255, 0.8)', 'rgba(118, 109, 255, 0.4)']) {
-      const { chart } = context;
-      const { ctx, chartArea } = chart;
-      if (!chartArea) return colors[0];
-      const gradient = ctx.createLinearGradient(chartArea.left, 0, chartArea.right, 0);
-      gradient.addColorStop(0, colors[0]);
-      gradient.addColorStop(1, colors[1] ?? colors[0]);
-      return gradient;
     }
 
     function createStackedBarChart(canvas, labels, datasets, options) {
@@ -876,6 +977,16 @@
         data: { labels, datasets },
         options,
       });
+    }
+
+    function getTopPlayersByMetric(players, position, metric, limit = 2) {
+      if (!Array.isArray(players)) return [];
+      return players
+        .filter((player) => player?.pos === position)
+        .map((player) => ({ ...player, _metric: Number(player?.[metric]) || 0 }))
+        .sort((a, b) => b._metric - a._metric)
+        .slice(0, limit)
+        .map(({ _metric, ...rest }) => rest);
     }
 
     function renderOverallChart(teams) {
@@ -893,8 +1004,9 @@
             label: SLOT_LABELS[pos] || pos,
             slotKey: pos,
             data: values,
-            backgroundColor: (context) => createGradient(context, LINEUP_COLORS[pos] || LINEUP_COLORS.FLEX),
-            borderColor: 'rgba(255,255,255,0.1)',
+            backgroundColor: OVERALL_COLORS[pos] || OVERALL_COLORS.DEFAULT,
+            hoverBackgroundColor: OVERALL_COLORS[pos] || OVERALL_COLORS.DEFAULT,
+            borderColor: 'rgba(255,255,255,0.08)',
             borderWidth: 1,
             borderRadius: 10,
             barPercentage: 0.9,
@@ -957,6 +1069,11 @@
                 },
               },
             },
+            stackedTotals: {
+              formatter: (value) => formatNumber(value),
+              font: { size: 11, weight: 600 },
+              padding: 10,
+            },
           },
         },
       );
@@ -971,16 +1088,24 @@
       const userValues = {};
 
       positions.forEach((pos) => {
-        let totalLeagueValue = 0;
+        let totalLeaguePpg = 0;
         teams.forEach((team) => {
-          const topTwo = team.allPlayers.filter((player) => player.pos === pos).slice(0, 2);
-          totalLeagueValue += topTwo.reduce((sum, player) => sum + player.ktc, 0);
+          const topTwo = getTopPlayersByMetric(team.allPlayers, pos, 'ppg', 2);
+          totalLeaguePpg += topTwo.reduce((sum, player) => sum + (player.ppg || 0), 0);
         });
-        leagueAverages[pos] = teams.length > 0 ? totalLeagueValue / teams.length : 0;
+        leagueAverages[pos] = teams.length > 0 ? totalLeaguePpg / teams.length : 0;
 
-        const userTopTwo = userTeam.allPlayers.filter((player) => player.pos === pos).slice(0, 2);
-        userValues[pos] = userTopTwo.reduce((sum, player) => sum + player.ktc, 0);
+        const userTopTwo = getTopPlayersByMetric(userTeam.allPlayers, pos, 'ppg', 2);
+        userValues[pos] = userTopTwo.reduce((sum, player) => sum + (player.ppg || 0), 0);
       });
+
+      const radarMax = roundUpTo(
+        Math.max(
+          0,
+          ...positions.flatMap((pos) => [userValues[pos] || 0, leagueAverages[pos] || 0]),
+        ),
+        5,
+      );
 
       if (state.charts.radar) {
         state.charts.radar.destroy();
@@ -992,7 +1117,7 @@
           labels: positions.map((pos) => SLOT_LABELS[pos] || pos),
           datasets: [
             {
-              label: 'Your Team (Top 2)',
+              label: 'Your Team (Top 2 PPG)',
               data: positions.map((pos) => userValues[pos] || 0),
               fill: true,
               backgroundColor: 'rgba(118, 109, 255, 0.35)',
@@ -1002,7 +1127,7 @@
               pointRadius: 4,
             },
             {
-              label: 'League Average (Top 2)',
+              label: 'League Average (Top 2 PPG)',
               data: positions.map((pos) => leagueAverages[pos] || 0),
               fill: true,
               backgroundColor: 'rgba(66, 194, 255, 0.25)',
@@ -1022,15 +1147,21 @@
               grid: { color: 'rgba(234, 235, 240, 0.1)' },
               pointLabels: {
                 color: '#EAEBF0',
-                font: { size: 13, weight: '500', family: "'Product Sans', 'Google Sans', sans-serif" },
+                font: { size: 15, weight: '600', family: "'Product Sans', 'Google Sans', sans-serif" },
+                padding: 12,
               },
               ticks: {
                 color: '#EAEBF0',
                 backdropColor: 'rgba(13, 14, 27, 0.65)',
                 display: true,
                 showLabelBackdrop: true,
-                callback: (value) => formatNumber(value),
+                callback: (value) => formatPpg(value),
+                padding: 6,
+                backdropPadding: 8,
               },
+              suggestedMin: 0,
+              suggestedMax: radarMax,
+              max: radarMax,
             },
           },
           plugins: {
