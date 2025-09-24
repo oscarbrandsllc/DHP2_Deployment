@@ -1007,6 +1007,22 @@
       return `${i}th`;
     }
 
+    function abbreviateName(name) {
+      if (!name) return '';
+      const trimmed = String(name).trim();
+      if (!trimmed) return '';
+      const parts = trimmed.split(/\s+/);
+      if (parts.length === 1) {
+        return parts[0];
+      }
+
+      const first = parts[0];
+      const initialMatch = first.match(/[A-Za-z]/);
+      const initial = initialMatch ? `${first[initialMatch.index].toUpperCase()}.` : '';
+      const remainder = parts.slice(1).join(' ');
+      return initial && remainder ? `${initial} ${remainder}` : trimmed;
+    }
+
     function renderSummaryStats(teams) {
       const userTeam = teams.find((team) => team.isUserTeam);
       if (!userTeam) {
@@ -1015,7 +1031,19 @@
       }
 
       const totalTeams = teams.length;
-      const overallRank = computeRank(teams, (team) => team.isUserTeam);
+      const standingsOrder = teams
+        .map((team) => ({
+          team,
+          winPct: computeWinPct(team.wins, team.losses, team.ties),
+        }))
+        .sort((a, b) => {
+          if (b.winPct !== a.winPct) return b.winPct - a.winPct;
+          if (b.team.wins !== a.team.wins) return b.team.wins - a.team.wins;
+          if (b.team.totalFpts !== a.team.totalFpts) return b.team.totalFpts - a.team.totalFpts;
+          return a.team.teamName.localeCompare(b.team.teamName);
+        });
+      const overallRankIndex = standingsOrder.findIndex(({ team }) => team.isUserTeam);
+      const overallRank = overallRankIndex === -1 ? null : overallRankIndex + 1;
 
       const starterValueRank = computeRank(
         [...teams].sort((a, b) => b.startersValueTotal - a.startersValueTotal),
@@ -1056,7 +1084,7 @@
           accent: overallRank ? getRankColor(overallRank, totalTeams) : undefined,
         },
         {
-          label: 'Total Roster Value',
+          label: 'TTL Team Value',
           value: formatNumber(userTeam.totalValue),
           meta: 'KTC',
         },
@@ -1079,8 +1107,8 @@
           accent: starterPpgRank ? getRankColor(starterPpgRank, totalTeams) : undefined,
         },
         {
-          label: 'Top Scoring Player',
-          value: topScorer?.name || '—',
+          label: 'Top Scorer',
+          value: abbreviateName(topScorer?.name) || '—',
           meta: topScorerMeta,
           accent: topScorer?.total ? 'var(--color-accent-secondary)' : undefined,
           className: 'analyzer-chip--top-scorer',
@@ -1144,7 +1172,7 @@
             slotKey: slot,
             data: values,
             backgroundColor: (context) => createGradient(context, gradientPair),
-            borderColor: hexToRgba(hex, 0.95),
+            borderColor: hexToRgba(hex, 0.85),
             borderWidth: 1,
             borderRadius: 10,
             barPercentage: 0.9,
@@ -1169,9 +1197,10 @@
 
     function buildLineupOptions(max, metric, teams) {
       const formatter = metric === 'value' ? formatNumber : formatPpg;
+      const paddedMax = max > 0 ? max * 1.08 : max;
       const axisMax = metric === 'value'
-        ? roundUpTo(max, 5000)
-        : roundUpTo(max, 5);
+        ? roundUpTo(paddedMax, 5000)
+        : roundUpTo(paddedMax, 5);
       const isMobile = window.matchMedia('(max-width: 640px)').matches;
 
       return {
@@ -1181,7 +1210,7 @@
         interaction: { mode: 'nearest', intersect: false },
         layout: {
           padding: {
-            left: isMobile ? 8 : 16,
+            left: isMobile ? 2 : 4,
             right: isMobile ? 14 : 18,
             top: 8,
             bottom: 8,
@@ -1206,7 +1235,7 @@
             grid: { display: false },
             ticks: {
               color: '#EAEBF0',
-              padding: isMobile ? 4 : 8,
+              padding: isMobile ? 2 : 4,
               font: {
                 size: isMobile ? 10 : 12,
                 family: "'Product Sans', 'Google Sans', sans-serif",
@@ -1294,7 +1323,7 @@
     }
 
     function buildGradientPair(hex) {
-      return [hexToRgba(hex, 0.92), hexToRgba(hex, 0.45)];
+      return [hexToRgba(hex, 0.78), hexToRgba(hex, 0.32)];
     }
 
     function createStackedBarChart(canvas, labels, datasets, options) {
@@ -1323,7 +1352,7 @@
             slotKey: pos,
             data: values,
             backgroundColor: (context) => createGradient(context, gradientPair),
-            borderColor: hexToRgba(hex, 0.92),
+            borderColor: hexToRgba(hex, 0.85),
             borderWidth: 1,
             borderRadius: 10,
             barPercentage: 0.9,
@@ -1334,6 +1363,7 @@
         .filter(Boolean);
 
       const maxValue = Math.max(0, ...teams.map((team) => team.totalValue));
+      const paddedMaxValue = maxValue > 0 ? maxValue * 1.08 : maxValue;
       const isMobile = window.matchMedia('(max-width: 640px)').matches;
 
       state.charts.overall = createStackedBarChart(
@@ -1347,7 +1377,7 @@
           interaction: { mode: 'nearest', intersect: false },
           layout: {
             padding: {
-              left: isMobile ? 8 : 16,
+              left: isMobile ? 2 : 4,
               right: isMobile ? 14 : 18,
               top: 8,
               bottom: 8,
@@ -1365,14 +1395,14 @@
                   family: "'Product Sans', 'Google Sans', sans-serif",
                 },
               },
-              max: roundUpTo(maxValue, 10000),
+              max: roundUpTo(paddedMaxValue, 10000),
             },
             y: {
               stacked: true,
               grid: { display: false },
               ticks: {
                 color: '#EAEBF0',
-                padding: isMobile ? 4 : 8,
+                padding: isMobile ? 2 : 4,
                 font: {
                   size: isMobile ? 10 : 12,
                   family: "'Product Sans', 'Google Sans', sans-serif",
@@ -1464,8 +1494,8 @@
               label: 'League Average',
               data: leagueAverages,
               fill: true,
-              backgroundColor: 'rgba(82, 90, 119, 0.23)',
-              borderColor: 'rgba(151, 166, 210, 0.55)',
+              backgroundColor: 'rgba(82, 90, 119, 0.18)',
+              borderColor: 'rgba(151, 166, 210, 0.4)',
               borderWidth: 1.1,
               pointBackgroundColor: 'rgba(188, 210, 255, 0.85)',
               pointBorderColor: '#0D0E1B',
@@ -1476,8 +1506,8 @@
               label: 'Your Team',
               data: userData,
               fill: true,
-              backgroundColor: 'rgba(83, 0, 255, 0.33)',
-              borderColor: '#6700ff',
+              backgroundColor: 'rgba(103, 0, 255, 0.28)',
+              borderColor: 'rgba(103, 0, 255, 0.7)',
               borderWidth: 2,
               pointBackgroundColor: '#6300ff',
               pointBorderColor: '#0D0E1B',
@@ -1492,6 +1522,9 @@
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          layout: {
+            padding: 0,
+          },
           events: [],
           elements: {
             line: { tension: 0.32 },
@@ -1508,7 +1541,7 @@
               pointLabels: {
                 color: '#EAEBF0',
                 font: { size: 13, weight: '600', family: "'Product Sans', 'Google Sans', sans-serif" },
-                padding: 14,
+                padding: 8,
               },
             },
           },
@@ -1526,7 +1559,7 @@
             },
             analyzerRadarLabels: {
               font: '11px "Product Sans", "Google Sans", sans-serif',
-              offset: 20,
+              offset: 16,
             },
           },
         },
@@ -1579,16 +1612,25 @@
       }
 
       elements.leaderboardBody.innerHTML = leaders
-        .map((entry, index) => `
+        .map((entry, index) => {
+          const displayName = abbreviateName(entry.name) || '—';
+          const ownerRaw = entry.owner ? String(entry.owner).trim() : '';
+          const ownerDisplay = ownerRaw
+            ? ownerRaw.length > 10
+              ? `${ownerRaw.slice(0, 10)}…`
+              : ownerRaw
+            : '—';
+          return `
           <tr>
             <td>${index + 1}</td>
-            <td>${entry.name}</td>
+            <td>${displayName}</td>
             <td>${entry.nflTeam}</td>
-            <td>${entry.owner}</td>
+            <td>${ownerDisplay}</td>
             <td>${entry.total.toFixed(1)}</td>
             <td>${entry.ppg.toFixed(1)}</td>
           </tr>
-        `)
+        `;
+        })
         .join('');
     }
 
