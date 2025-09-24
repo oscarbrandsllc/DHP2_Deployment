@@ -5984,6 +5984,18 @@ body[data-page="analyzer"] .analyzer-summary-grid {
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
 }
 
+@media (min-width: 480px) {
+  body[data-page="analyzer"] .analyzer-summary-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (min-width: 768px) {
+  body[data-page="analyzer"] .analyzer-summary-grid {
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  }
+}
+
 body[data-page="analyzer"] .analyzer-chip {
   position: relative;
   padding: 0.95rem 1.05rem;
@@ -6017,6 +6029,13 @@ body[data-page="analyzer"] .analyzer-chip .chip-value {
   font-size: 1.3rem;
   font-weight: 700;
   color: var(--color-text-primary);
+}
+
+body[data-page="analyzer"] .analyzer-chip.top-scorer-chip .chip-value {
+  font-size: 1.1rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 body[data-page="analyzer"] .analyzer-chip .chip-meta {

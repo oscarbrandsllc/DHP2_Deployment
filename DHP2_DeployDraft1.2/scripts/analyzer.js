@@ -60,6 +60,12 @@
       Picks: ['rgba(236, 217, 120, 0.9)', 'rgba(236, 217, 120, 0.35)'],
     };
 
+    const BAR_CHART_COLORS = {
+      value: ['#15607a', '#0c8184', '#0da0a4', '#09bb9f', '#2ad2a0', '#37ebb5'],
+      ppg: ['#003c63', '#005d91', '#006da2', '#007bb4', '#008cd1', '#00a3ff'],
+      total: ['#3700B3', '#4c02de', '#6300ff', '#7100ff', '#8700ff', '#9400ff'],
+    };
+
     const RADAR_SLOT_TYPES = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'SUPER_FLEX'];
     const RADAR_FLEX_ELIGIBLE = ['RB', 'WR', 'TE'];
 
@@ -106,6 +112,37 @@
       },
     };
 
+    const barTotalLabelsPlugin = {
+        id: 'barTotalLabels',
+        afterDatasetsDraw(chart) {
+            const ctx = chart.ctx;
+            chart.data.datasets.forEach((dataset, i) => {
+                const meta = chart.getDatasetMeta(i);
+                if (meta.hidden) {
+                    return;
+                }
+                meta.data.forEach((bar, index) => {
+                    const total = chart.data.labels.map((label, i) => {
+                        return chart.data.datasets.reduce((sum, dataset) => {
+                            return sum + (dataset.data[i] || 0);
+                        }, 0);
+                    });
+
+                    const xPos = bar.x + 8;
+                    const yPos = bar.y;
+
+                    ctx.save();
+                    ctx.textAlign = 'left';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillStyle = '#EAEBF0';
+                    ctx.font = '11px "Product Sans", "Google Sans", sans-serif';
+                    ctx.fillText(formatNumber(total[index]), xPos, yPos);
+                    ctx.restore();
+                });
+            });
+        }
+    };
+
     const radarPointLabelsPlugin = {
       id: 'analyzerRadarLabels',
       afterDatasetsDraw(chart, args, options) {
@@ -130,8 +167,8 @@
 
             const { x, y } = point.tooltipPosition();
             const angle = Math.atan2(y - scale.yCenter, x - scale.xCenter);
-            const offsetX = Math.cos(angle) * 12;
-            const offsetY = Math.sin(angle) * 12;
+            const offsetX = Math.cos(angle) * 24;
+            const offsetY = Math.sin(angle) * 24;
 
             const ctx = chart.ctx;
             ctx.save();
@@ -146,7 +183,7 @@
       },
     };
 
-    Chart.register(radarBackgroundPlugin, radarPointLabelsPlugin);
+    Chart.register(radarBackgroundPlugin, radarPointLabelsPlugin, barTotalLabelsPlugin);
 
     const state = {
       userId: null,
@@ -156,6 +193,7 @@
       ktcSflx: {},
       playerStats: {},
       playerStatsSeason: null,
+      totalRankedPlayers: 0,
       currentLeagueId: null,
       currentLineupMetric: 'value',
       isSuperflex: false,
@@ -525,6 +563,28 @@
         ? radarSlots
         : buildRadarSlots(leagueInfo?.roster_positions || []);
 
+      const allRankablePlayers = [];
+      (Array.isArray(rosters) ? rosters : []).forEach(roster => {
+          (roster.players || []).forEach(playerId => {
+              const playerInfo = state.players[playerId];
+              if (!playerInfo) return;
+              const ppg = state.playerStats[playerId]?.ppg ?? 0;
+              if (ppg > 0) {
+                  allRankablePlayers.push({ playerId, ppg });
+              }
+          });
+      });
+
+      allRankablePlayers.sort((a, b) => b.ppg - a.ppg);
+
+      const ppgRankMap = new Map();
+      allRankablePlayers.forEach((player, index) => {
+          ppgRankMap.set(player.playerId, index + 1);
+      });
+
+      const totalRankedPlayers = allRankablePlayers.length;
+      state.totalRankedPlayers = totalRankedPlayers;
+
       const teams = (Array.isArray(rosters) ? rosters : []).map((roster) => {
         const owner = userMap[roster.owner_id] || userMap[roster.co_owner_id];
         const teamName = roster.metadata?.team_name || owner?.display_name || `Team ${roster.roster_id}`;
@@ -569,6 +629,10 @@
           const playerInfo = state.players[playerId];
           const ktc = getKtcValue(playerId);
           const pos = playerInfo?.position;
+          const ppg = state.playerStats[playerId]?.ppg ?? 0;
+          const ppgRank = ppgRankMap.get(playerId);
+          const invertedPpgRank = ppgRank ? totalRankedPlayers - ppgRank + 1 : 0;
+
           if (pos && overallPositional[pos] !== undefined) {
             overallPositional[pos] += ktc;
           }
@@ -576,6 +640,8 @@
             id: playerId,
             pos,
             ktc,
+            ppg,
+            ppgRank: invertedPpgRank,
             name: formatPlayerName(playerInfo),
           };
         }).sort((a, b) => b.ktc - a.ktc);
@@ -745,12 +811,11 @@
         if (!availableByPos[player.pos]) {
           availableByPos[player.pos] = [];
         }
-        const value = Number(player.ktc) || 0;
-        availableByPos[player.pos].push({ ...player, ktc: value });
+        availableByPos[player.pos].push({ ...player });
       });
 
       Object.keys(availableByPos).forEach((pos) => {
-        availableByPos[pos].sort((a, b) => (b.ktc || 0) - (a.ktc || 0));
+        availableByPos[pos].sort((a, b) => (b.ppgRank || 0) - (a.ppgRank || 0));
       });
 
       const used = new Set();
@@ -787,7 +852,7 @@
         let bestIndex = null;
         RADAR_FLEX_ELIGIBLE.forEach((pos) => {
           const { player, index } = peekNext(pos);
-          if (player && (!best || (player.ktc || 0) > (best.ktc || 0))) {
+          if (player && (!best || (player.ppgRank || 0) > (best.ppgRank || 0))) {
             best = player;
             bestPos = pos;
             bestIndex = index;
@@ -814,7 +879,8 @@
 
         assignments[idx] = {
           ...slot,
-          value: selected?.ktc ?? 0,
+          value: selected?.ppgRank ?? 0,
+          ppg: selected?.ppg ?? 0,
           player: selected ? { id: selected.id, name: selected.name } : null,
         };
       });
@@ -964,12 +1030,13 @@
           value: topScorer?.name || '—',
           meta: topScorerMeta,
           accent: topScorer?.total ? 'var(--color-accent-secondary)' : undefined,
+          isTopScorer: true,
         },
       ];
 
       elements.summaryStats.innerHTML = chips
         .map((chip) => `
-          <article class="analyzer-chip">
+          <article class="analyzer-chip${chip.isTopScorer ? ' top-scorer-chip' : ''}">
             <span class="chip-label">${chip.label}</span>
             <span class="chip-value"${chip.accent ? ` style="color: ${chip.accent};"` : ''}>${chip.value}</span>
             <span class="chip-meta">${chip.meta}</span>
@@ -1007,6 +1074,9 @@
 
       const createDatasetForMetric = (metric) => {
         const datasets = [];
+        const colors = BAR_CHART_COLORS[metric];
+        let colorIndex = 0;
+
         SLOT_ORDER.forEach((slot) => {
           const values = teams.map((team) => team.startersBySlot[slot]?.[metric] ?? 0);
           if (!values.some((value) => value > 0)) return;
@@ -1014,7 +1084,7 @@
             label: SLOT_LABELS[slot] || slot,
             slotKey: slot,
             data: values,
-            backgroundColor: (context) => createGradient(context, LINEUP_COLORS[slot] || LINEUP_COLORS.FLEX),
+            backgroundColor: (context) => createGradient(context, [colors[colorIndex % colors.length], colors[(colorIndex + 1) % colors.length]]),
             borderColor: 'rgba(255,255,255,0.12)',
             borderWidth: 1,
             borderRadius: 10,
@@ -1022,6 +1092,7 @@
             categoryPercentage: 0.7,
             stack: 'lineup',
           });
+          colorIndex++;
         });
 
         const maxValue = Math.max(
@@ -1129,15 +1200,18 @@
 
       const labels = teams.map((team) => team.teamName);
       const positions = ['QB', 'RB', 'WR', 'TE', 'Picks'];
+      const colors = BAR_CHART_COLORS.total;
+      let colorIndex = 0;
+
       const datasets = positions
         .map((pos) => {
           const values = teams.map((team) => team.overallPositional[pos] || 0);
           if (!values.some((value) => value > 0)) return null;
-          return {
+          const dataset = {
             label: SLOT_LABELS[pos] || pos,
             slotKey: pos,
             data: values,
-            backgroundColor: (context) => createGradient(context, LINEUP_COLORS[pos] || LINEUP_COLORS.FLEX),
+            backgroundColor: (context) => createGradient(context, [colors[colorIndex % colors.length], colors[(colorIndex + 1) % colors.length]]),
             borderColor: 'rgba(255,255,255,0.1)',
             borderWidth: 1,
             borderRadius: 10,
@@ -1145,6 +1219,8 @@
             categoryPercentage: 0.7,
             stack: 'overall',
           };
+          colorIndex++;
+          return dataset;
         })
         .filter(Boolean);
 
@@ -1252,6 +1328,7 @@
             {
               label: 'Your Team',
               data: userData,
+              ppgData: slots.map((slot, index) => userTeam.radarAssignments?.[index]?.ppg ?? 0),
               fill: true,
               backgroundColor: 'rgba(118, 109, 255, 0.25)',
               borderColor: 'rgba(118, 109, 255, 0.95)',
@@ -1261,7 +1338,10 @@
               pointRadius: 4.5,
               analyzerLabels: true,
               labelColor: '#00F5A0',
-              labelFormatter: (value) => formatNumber(value),
+              labelFormatter: (value, index, dataset) => {
+                const ppg = dataset.ppgData?.[index];
+                return ppg ? formatPpg(ppg) : '';
+              },
               order: 2,
             },
           ],
@@ -1284,7 +1364,8 @@
               ticks: { display: false },
               pointLabels: {
                 color: '#EAEBF0',
-                font: { size: 12, weight: '500', family: "'Product Sans', 'Google Sans', sans-serif" },
+                font: { size: 14, weight: '500', family: "'Product Sans', 'Google Sans', sans-serif" },
+                padding: 8,
               },
             },
           },
