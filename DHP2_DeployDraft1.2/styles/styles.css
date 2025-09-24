@@ -3623,6 +3623,11 @@ body[data-page="rosters"] #secondary-header-row #analyzeLeagueButton.active {
         flex-direction: column;
         gap: 0.2rem;
     }
+
+    #player-comparison-modal .summary-chips-container .player-vitals--compare {
+        width: 100%;
+        box-sizing: border-box;
+    }
     
     /* · · Player Comp Table · · */
     .player-comparison-table { 
