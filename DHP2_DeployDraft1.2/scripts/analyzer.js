@@ -51,14 +51,73 @@
     const POSITION_ORDER = ['QB', 'RB', 'WR', 'TE'];
 
     const LINEUP_COLORS = {
-      QB: ['rgba(255, 58, 117, 0.85)', 'rgba(255, 58, 117, 0.45)'],
-      RB: ['rgba(0, 235, 199, 0.9)', 'rgba(0, 235, 199, 0.45)'],
-      WR: ['rgba(88, 167, 255, 0.9)', 'rgba(88, 167, 255, 0.45)'],
-      TE: ['rgba(180, 105, 255, 0.85)', 'rgba(180, 105, 255, 0.45)'],
-      FLEX: ['rgba(255, 127, 80, 0.85)', 'rgba(255, 127, 80, 0.45)'],
-      SUPER_FLEX: ['rgba(220, 220, 220, 0.85)', 'rgba(220, 220, 220, 0.35)'],
-      Picks: ['rgba(255, 199, 0, 0.85)', 'rgba(255, 199, 0, 0.45)'],
+      QB: ['rgba(146, 102, 255, 0.95)', 'rgba(146, 102, 255, 0.45)'],
+      RB: ['rgba(0, 225, 185, 0.95)', 'rgba(0, 225, 185, 0.45)'],
+      WR: ['rgba(96, 184, 255, 0.95)', 'rgba(96, 184, 255, 0.45)'],
+      TE: ['rgba(255, 158, 228, 0.9)', 'rgba(255, 158, 228, 0.45)'],
+      FLEX: ['rgba(255, 199, 134, 0.88)', 'rgba(255, 199, 134, 0.42)'],
+      SUPER_FLEX: ['rgba(120, 255, 215, 0.88)', 'rgba(120, 255, 215, 0.38)'],
+      Picks: ['rgba(255, 220, 120, 0.9)', 'rgba(255, 220, 120, 0.42)'],
     };
+
+    const RADAR_BACKGROUND_LAYERS = [
+      { value: 100, fill: 'rgba(44, 51, 79, 0.38)', line: 'rgba(82, 90, 119, 0.22)', width: 1 },
+      { value: 80, fill: 'rgba(45, 52, 81, 0.32)', line: 'rgba(82, 90, 119, 0.16)', width: 0.9 },
+      { value: 60, fill: 'rgba(47, 54, 82, 0.31)', line: 'rgba(82, 90, 119, 0.16)', width: 0.9 },
+      { value: 40, fill: 'rgba(48, 55, 84, 0.33)', line: 'rgba(82, 90, 119, 0.16)', width: 0.9 },
+      { value: 20, fill: 'rgba(49, 56, 85, 0.4)', line: 'rgba(82, 90, 119, 0.21)', width: 0.9 },
+    ];
+
+    const radarDataLabelPlugin = {
+      id: 'radarDataLabels',
+      afterDatasetsDraw(chart, args, pluginOptions = {}) {
+        const datasetIndex = chart.data.datasets.findIndex((dataset) => dataset && dataset.isUserDataset);
+        if (datasetIndex === -1) return;
+
+        const dataset = chart.data.datasets[datasetIndex];
+        if (!dataset?.customDataLabels) return;
+
+        const labels = dataset.customDataLabels;
+        if (!labels.length) return;
+
+        const scale = chart.scales?.r;
+        if (!scale) return;
+
+        const centerX = scale.xCenter;
+        const centerY = scale.yCenter;
+        const ctx = chart.ctx;
+        const computedFont = getComputedStyle(document.documentElement).getPropertyValue('--font-sans')
+          || "'Product Sans', 'Google Sans', 'Quicksand', sans-serif";
+        const offset = pluginOptions.offset ?? 14;
+        const fontSize = pluginOptions.fontSize ?? 11;
+        const fontWeight = pluginOptions.fontWeight ?? 600;
+
+        ctx.save();
+        labels.forEach((label, index) => {
+          if (!label || !label.text) return;
+          const meta = chart.getDatasetMeta(datasetIndex);
+          const point = meta?.data?.[index];
+          if (!point || point.skip || point.hidden) return;
+
+          const x = point.x;
+          const y = point.y;
+          const angle = Math.atan2(y - centerY, x - centerX);
+          const dx = Math.cos(angle) * (label.offset ?? offset);
+          const dy = Math.sin(angle) * (label.offset ?? offset);
+
+          ctx.font = `${fontWeight} ${label.fontSize ?? fontSize}px ${computedFont.trim()}`;
+          ctx.fillStyle = label.color || pluginOptions.color || '#EAEBF0';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(label.text, x + dx, y + dy);
+        });
+        ctx.restore();
+      },
+    };
+
+    if (!Chart.registry.plugins.get('radarDataLabels')) {
+      Chart.register(radarDataLabelPlugin);
+    }
 
     const state = {
       userId: null,
@@ -81,6 +140,8 @@
       teams: [],
       leaderboards: { QB: [], RB: [], WR: [], TE: [] },
       activeLeaderboard: 'QB',
+      slotBlueprint: [],
+      scoringRanks: {},
     };
 
     elements.usernameInput?.addEventListener('keydown', (event) => {
@@ -397,6 +458,8 @@
         const processed = processLeagueData(rosters, users, tradedPicks, leagueInfo);
         state.teams = processed.teams;
         state.leaderboards = processed.leaderboards;
+        state.slotBlueprint = processed.slotBlueprint;
+        state.scoringRanks = processed.scoringRanks;
         renderSummaryStats(state.teams);
         renderLineupChart(state.teams);
         renderOverallChart(state.teams);
@@ -427,6 +490,8 @@
         : {};
 
       const leaderboards = { QB: [], RB: [], WR: [], TE: [] };
+      const slotBlueprint = buildSlotBlueprint(leagueInfo?.roster_positions || []);
+      const scoringEntries = [];
 
       const teams = (Array.isArray(rosters) ? rosters : []).map((roster) => {
         const owner = userMap[roster.owner_id] || userMap[roster.co_owner_id];
@@ -467,6 +532,7 @@
         });
 
         const overallPositional = { QB: 0, RB: 0, WR: 0, TE: 0, Picks: 0 };
+        let topScorer = null;
         const allPlayers = (roster.players || []).map((playerId) => {
           const playerInfo = state.players[playerId];
           const ktc = getKtcValue(playerId);
@@ -485,6 +551,8 @@
         getOwnedPicks(roster.roster_id, rosters, tradedPicks, leagueInfo).forEach((pick) => {
           overallPositional.Picks += getKtcValue(pick.label);
         });
+
+        const optimalLineup = selectOptimalLineup(allPlayers, slotBlueprint);
 
         const totalValue = Object.values(overallPositional).reduce((sum, value) => sum + value, 0);
         const startersValueTotal = SLOT_ORDER.reduce((sum, slot) => sum + (startersBySlot[slot]?.value ?? 0), 0);
@@ -518,6 +586,19 @@
             total,
             ppg,
           });
+          scoringEntries.push({
+            playerId,
+            total,
+            name: formatPlayerName(playerInfo),
+          });
+          if (!topScorer || total > topScorer.total) {
+            topScorer = {
+              id: playerId,
+              name: formatPlayerName(playerInfo),
+              total,
+              pos,
+            };
+          }
         });
 
         return {
@@ -527,6 +608,7 @@
           startersBySlot,
           startersValueByPos,
           allPlayers,
+          optimalLineup,
           totalValue,
           startersValueTotal,
           starterPpgTotal,
@@ -538,6 +620,7 @@
           pointsAgainst: pa,
           teamPpg,
           isUserTeam: roster.owner_id === state.userId,
+          topScorer,
         };
       });
 
@@ -551,8 +634,15 @@
           .slice(0, 10);
       });
 
+      const scoringRanks = buildScoringRankMap(scoringEntries);
+      teams.forEach((team) => {
+        if (team.topScorer?.id && scoringRanks[team.topScorer.id]) {
+          team.topScorer.rank = scoringRanks[team.topScorer.id].rank;
+        }
+      });
+
       teams.sort((a, b) => b.totalValue - a.totalValue);
-      return { teams, leaderboards };
+      return { teams, leaderboards, slotBlueprint, scoringRanks };
     }
 
     function normalizeSlot(slot) {
@@ -566,6 +656,91 @@
       if (slot.includes('WR')) return 'WR';
       if (slot.includes('TE')) return 'TE';
       return null;
+    }
+
+    function buildScoringRankMap(entries) {
+      if (!entries.length) return {};
+      return [...entries]
+        .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name))
+        .reduce((acc, entry, index) => {
+          acc[entry.playerId] = { rank: index + 1, total: entry.total };
+          return acc;
+        }, {});
+    }
+
+    function buildSlotBlueprint(rosterPositions) {
+      const counts = {};
+      return (Array.isArray(rosterPositions) ? rosterPositions : [])
+        .map((slot) => normalizeSlot(slot))
+        .filter(Boolean)
+        .map((slot) => {
+          counts[slot] = (counts[slot] || 0) + 1;
+          const index = counts[slot];
+          return {
+            slot,
+            label: index > 1 ? `${SLOT_LABELS[slot] || slot} ${index}` : (SLOT_LABELS[slot] || slot),
+          };
+        });
+    }
+
+    function selectOptimalLineup(players, blueprint) {
+      if (!Array.isArray(players) || !players.length || !Array.isArray(blueprint)) return [];
+
+      const available = players
+        .filter((player) => player && player.pos)
+        .map((player) => ({ ...player }));
+      const used = new Set();
+
+      const takeBest = (eligiblePositions) => {
+        let best = null;
+        available.forEach((player) => {
+          if (used.has(player.id)) return;
+          if (!eligiblePositions.includes(player.pos)) return;
+          if (!best || player.ktc > best.ktc) {
+            best = player;
+          }
+        });
+        if (best) {
+          used.add(best.id);
+        }
+        return best;
+      };
+
+      const assignments = blueprint.map((entry) => ({ slot: entry.slot, label: entry.label, player: null, value: 0 }));
+
+      assignments.forEach((assignment) => {
+        if (assignment.slot === 'FLEX' || assignment.slot === 'SUPER_FLEX') return;
+        const player = takeBest([assignment.slot]);
+        if (player) {
+          assignment.player = player;
+          assignment.value = player.ktc;
+        }
+      });
+
+      assignments
+        .filter((assignment) => assignment.slot === 'SUPER_FLEX')
+        .forEach((assignment) => {
+          let player = takeBest(['QB']);
+          if (!player) {
+            player = takeBest(['RB', 'WR', 'TE']);
+          }
+          if (player) {
+            assignment.player = player;
+            assignment.value = player.ktc;
+          }
+        });
+
+      assignments
+        .filter((assignment) => assignment.slot === 'FLEX')
+        .forEach((assignment) => {
+          const player = takeBest(['RB', 'WR', 'TE']);
+          if (player) {
+            assignment.player = player;
+            assignment.value = player.ktc;
+          }
+        });
+
+      return assignments;
     }
 
     function formatPlayerName(playerInfo) {
@@ -642,7 +817,9 @@
       }
 
       const totalTeams = teams.length;
-      const overallRank = computeRank(teams, (team) => team.isUserTeam);
+      const standingsOrder = getStandingsOrder(teams);
+      const standingsIndex = standingsOrder.findIndex((team) => team === userTeam);
+      const standingsRank = standingsIndex === -1 ? null : standingsIndex + 1;
 
       const starterValueRank = computeRank(
         [...teams].sort((a, b) => b.startersValueTotal - a.startersValueTotal),
@@ -659,20 +836,16 @@
         (team) => team.isUserTeam,
       );
 
-      const positionalRanks = {};
-      POSITION_ORDER.forEach((pos) => {
-        positionalRanks[pos] = computeRank(
-          [...teams].sort((a, b) => (b.startersValueByPos[pos] || 0) - (a.startersValueByPos[pos] || 0)),
-          (team) => team.isUserTeam,
-        );
-      });
+      const scoringTotal = Object.keys(state.scoringRanks || {}).length;
+      const topScorer = userTeam.topScorer;
+      const topScorerRank = topScorer?.rank || (topScorer?.id ? state.scoringRanks[topScorer.id]?.rank : null);
 
       const chips = [
         {
-          label: 'Overall Rank',
-          value: formatRankValue(overallRank),
-          meta: totalTeams ? `of ${totalTeams}` : '',
-          accent: overallRank ? getRankColor(overallRank, totalTeams) : undefined,
+          label: 'Ranking',
+          value: standingsRank ? `${ordinal(standingsRank)} of ${totalTeams}` : 'NA',
+          meta: userTeam.record ? `Record ${userTeam.record}` : '',
+          accent: standingsRank ? getRankColor(standingsRank, totalTeams) : undefined,
         },
         {
           label: 'Total Roster Value',
@@ -698,28 +871,15 @@
           accent: starterPpgRank ? getRankColor(starterPpgRank, totalTeams) : undefined,
         },
         {
-          label: 'QB Starter Rank',
-          value: formatRankValue(positionalRanks.QB),
-          meta: totalTeams ? `of ${totalTeams}` : '',
-          accent: positionalRanks.QB ? getRankColor(positionalRanks.QB, totalTeams) : undefined,
-        },
-        {
-          label: 'RB Starter Rank',
-          value: formatRankValue(positionalRanks.RB),
-          meta: totalTeams ? `of ${totalTeams}` : '',
-          accent: positionalRanks.RB ? getRankColor(positionalRanks.RB, totalTeams) : undefined,
-        },
-        {
-          label: 'WR Starter Rank',
-          value: formatRankValue(positionalRanks.WR),
-          meta: totalTeams ? `of ${totalTeams}` : '',
-          accent: positionalRanks.WR ? getRankColor(positionalRanks.WR, totalTeams) : undefined,
-        },
-        {
-          label: 'TE Starter Rank',
-          value: formatRankValue(positionalRanks.TE),
-          meta: totalTeams ? `of ${totalTeams}` : '',
-          accent: positionalRanks.TE ? getRankColor(positionalRanks.TE, totalTeams) : undefined,
+          label: 'Top Scoring Player',
+          value: topScorer ? topScorer.name : 'No data',
+          meta: topScorer
+            ? `${topScorerRank ? `${ordinal(topScorerRank)} • ` : ''}${topScorer.total.toFixed(1)} pts`
+            : 'No scoring data available',
+          accent:
+            topScorerRank && (scoringTotal || totalTeams)
+              ? getRankColor(topScorerRank, scoringTotal || totalTeams)
+              : undefined,
         },
       ];
 
@@ -966,77 +1126,172 @@
       const userTeam = teams.find((team) => team.isUserTeam);
       if (!userTeam) return;
 
-      const positions = POSITION_ORDER;
-      const leagueAverages = {};
-      const userValues = {};
+      const blueprint = Array.isArray(state.slotBlueprint) && state.slotBlueprint.length
+        ? state.slotBlueprint
+        : POSITION_ORDER.map((slot) => ({ slot, label: SLOT_LABELS[slot] || slot }));
 
-      positions.forEach((pos) => {
-        let totalLeagueValue = 0;
-        teams.forEach((team) => {
-          const topTwo = team.allPlayers.filter((player) => player.pos === pos).slice(0, 2);
-          totalLeagueValue += topTwo.reduce((sum, player) => sum + player.ktc, 0);
+      if (!blueprint.length) {
+        if (state.charts.radar) {
+          state.charts.radar.destroy();
+          state.charts.radar = null;
+        }
+        return;
+      }
+
+      const userTeamId = userTeam.roster?.roster_id;
+      const userIndex = teams.findIndex((team) => team.isUserTeam);
+      const slotStats = blueprint.map((entry, index) => {
+        const values = teams.map((team) => {
+          if (!Array.isArray(team.optimalLineup)) return 0;
+          const direct = team.optimalLineup[index];
+          if (direct && direct.slot === entry.slot) return direct.value || 0;
+          const fallback = team.optimalLineup.find((assignment) => assignment.slot === entry.slot && assignment.label === entry.label);
+          return fallback?.value || 0;
         });
-        leagueAverages[pos] = teams.length > 0 ? totalLeagueValue / teams.length : 0;
 
-        const userTopTwo = userTeam.allPlayers.filter((player) => player.pos === pos).slice(0, 2);
-        userValues[pos] = userTopTwo.reduce((sum, player) => sum + player.ktc, 0);
+        const maxValue = Math.max(0, ...values);
+        const total = values.reduce((sum, value) => sum + value, 0);
+        const average = values.length ? total / values.length : 0;
+        const userValue = values[userIndex] ?? 0;
+        const scaledUser = maxValue > 0 ? (userValue / maxValue) * 100 : 0;
+        const scaledAverage = maxValue > 0 ? (average / maxValue) * 100 : 0;
+
+        const rankOrder = values
+          .map((value, teamIndex) => ({ value, teamId: teams[teamIndex]?.roster?.roster_id }))
+          .sort((a, b) => b.value - a.value);
+        const rankIndex = rankOrder.findIndex((entry) => entry.teamId === userTeamId);
+        const rank = rankIndex === -1 ? null : rankIndex + 1;
+
+        const assignment = Array.isArray(userTeam.optimalLineup) ? userTeam.optimalLineup[index] : null;
+        const playerName = assignment?.player?.name || '';
+
+        return {
+          label: entry.label,
+          slot: entry.slot,
+          maxValue,
+          average,
+          userValue,
+          scaledUser,
+          scaledAverage,
+          rank,
+          playerName,
+        };
       });
 
       if (state.charts.radar) {
         state.charts.radar.destroy();
       }
 
+      const backgroundDatasets = RADAR_BACKGROUND_LAYERS.map((layer) => ({
+        data: slotStats.map(() => layer.value),
+        borderWidth: layer.width,
+        borderColor: layer.line,
+        backgroundColor: layer.fill,
+        fill: true,
+        pointRadius: 0,
+        hitRadius: 0,
+        hoverRadius: 0,
+        order: -10,
+      }));
+
+      const leagueDataset = {
+        label: 'League Average',
+        data: slotStats.map((slot) => slot.scaledAverage),
+        fill: true,
+        backgroundColor: 'rgba(66, 194, 255, 0.18)',
+        borderColor: 'rgba(66, 194, 255, 0.9)',
+        borderWidth: 1.5,
+        pointBackgroundColor: 'rgba(66, 194, 255, 0.95)',
+        pointBorderColor: '#141a32',
+        pointRadius: 3,
+        order: -2,
+      };
+
+      const userDataset = {
+        label: `${userTeam.teamName} Optimal`,
+        data: slotStats.map((slot) => slot.scaledUser),
+        fill: true,
+        backgroundColor: 'rgba(83, 0, 255, 0.33)',
+        borderColor: '#6700ff',
+        borderWidth: 2,
+        pointBackgroundColor: slotStats.map((slot) => (slot.rank ? getRankColor(slot.rank, teams.length) : '#EAEBF0')),
+        pointBorderColor: '#141a32',
+        pointRadius: 4,
+        hoverRadius: 4,
+        isUserDataset: true,
+        customDataLabels: slotStats.map((slot) => {
+          if (!slot.rank && !slot.playerName && !slot.userValue) {
+            return { text: `${Math.round(slot.scaledUser)}%` };
+          }
+          const pieces = [];
+          if (slot.rank) {
+            pieces.push(`${ordinal(slot.rank)}`);
+          }
+          pieces.push(`${Math.round(slot.scaledUser)}%`);
+          if (slot.userValue) {
+            pieces.push(`${formatNumber(slot.userValue)} KTC`);
+          }
+          return {
+            text: pieces.join(' • '),
+            color: slot.rank ? getRankColor(slot.rank, teams.length) : '#EAEBF0',
+          };
+        }),
+      };
+
+      const fontFamily = getComputedStyle(document.documentElement).getPropertyValue('--font-sans')
+        || "'Product Sans', 'Google Sans', 'Quicksand', sans-serif";
+
       state.charts.radar = new Chart(elements.radarCanvas, {
         type: 'radar',
         data: {
-          labels: positions.map((pos) => SLOT_LABELS[pos] || pos),
-          datasets: [
-            {
-              label: 'Your Team (Top 2)',
-              data: positions.map((pos) => userValues[pos] || 0),
-              fill: true,
-              backgroundColor: 'rgba(118, 109, 255, 0.35)',
-              borderColor: 'rgba(118, 109, 255, 0.95)',
-              pointBackgroundColor: 'rgba(118, 109, 255, 1)',
-              pointBorderColor: '#fff',
-              pointRadius: 4,
-            },
-            {
-              label: 'League Average (Top 2)',
-              data: positions.map((pos) => leagueAverages[pos] || 0),
-              fill: true,
-              backgroundColor: 'rgba(66, 194, 255, 0.25)',
-              borderColor: 'rgba(66, 194, 255, 0.9)',
-              pointBackgroundColor: 'rgba(66, 194, 255, 1)',
-              pointBorderColor: '#fff',
-              pointRadius: 4,
-            },
-          ],
+          labels: slotStats.map((slot) => slot.label),
+          datasets: [...backgroundDatasets, leagueDataset, userDataset],
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
+          events: [],
+          animation: { duration: 900, easing: 'easeOutQuart' },
           scales: {
             r: {
-              angleLines: { color: 'rgba(234, 235, 240, 0.1)' },
-              grid: { color: 'rgba(234, 235, 240, 0.1)' },
+              min: 0,
+              max: 100,
+              grid: { display: false },
+              angleLines: { display: false },
+              ticks: { display: false },
               pointLabels: {
                 color: '#EAEBF0',
-                font: { size: 13, weight: '500', family: "'Product Sans', 'Google Sans', sans-serif" },
-              },
-              ticks: {
-                color: '#EAEBF0',
-                backdropColor: 'rgba(13, 14, 27, 0.65)',
-                display: true,
-                showLabelBackdrop: true,
-                callback: (value) => formatNumber(value),
+                font: {
+                  size: 11,
+                  family: fontFamily,
+                },
               },
             },
           },
           plugins: {
-            legend: {
-              position: 'bottom',
-              labels: { color: '#EAEBF0' },
+            legend: { display: false },
+            tooltip: { enabled: false },
+            radarDataLabels: {
+              offset: 16,
+              fontSize: 11,
+              fontWeight: 600,
+            },
+            title: {
+              display: Boolean(userTeam.teamName),
+              text: userTeam.teamName,
+              color: '#6300ff',
+              font: {
+                size: 18,
+                family: fontFamily,
+                weight: 600,
+              },
+              padding: { bottom: 18 },
+            },
+          },
+          layout: { padding: 24 },
+          elements: {
+            line: {
+              borderJoinStyle: 'round',
             },
           },
         },
@@ -1044,34 +1299,29 @@
     }
 
     function renderStandings(teams) {
-      const standings = teams
-        .map((team) => ({
-          teamName: team.teamName,
-          wins: team.wins,
-          losses: team.losses,
-          ties: team.ties,
-          record: team.record,
-          pf: team.totalFpts,
-          pa: team.pointsAgainst,
-          winPct: computeWinPct(team.wins, team.losses, team.ties),
-        }))
-        .sort((a, b) => {
-          if (b.winPct !== a.winPct) return b.winPct - a.winPct;
-          if (b.wins !== a.wins) return b.wins - a.wins;
-          if (b.pf !== a.pf) return b.pf - a.pf;
-          return a.teamName.localeCompare(b.teamName);
-        });
+      const standings = getStandingsOrder(teams);
 
       elements.standingsBody.innerHTML = standings
         .map((team) => `
           <tr>
             <td data-label="Team">${team.teamName}</td>
             <td data-label="Record">${team.record}</td>
-            <td data-label="PF">${team.pf.toFixed(1)}</td>
-            <td data-label="PA">${team.pa.toFixed(1)}</td>
+            <td data-label="PF">${team.totalFpts.toFixed(1)}</td>
+            <td data-label="PA">${team.pointsAgainst.toFixed(1)}</td>
           </tr>
         `)
         .join('');
+    }
+
+    function getStandingsOrder(teams) {
+      return [...teams].sort((a, b) => {
+        const winPctA = computeWinPct(a.wins, a.losses, a.ties);
+        const winPctB = computeWinPct(b.wins, b.losses, b.ties);
+        if (winPctB !== winPctA) return winPctB - winPctA;
+        if (b.wins !== a.wins) return b.wins - a.wins;
+        if (b.totalFpts !== a.totalFpts) return b.totalFpts - a.totalFpts;
+        return a.teamName.localeCompare(b.teamName);
+      });
     }
 
     function computeWinPct(wins, losses, ties) {
