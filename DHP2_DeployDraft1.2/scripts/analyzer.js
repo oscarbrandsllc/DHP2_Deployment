@@ -36,6 +36,26 @@
       Picks: 'Draft Picks',
     };
 
+    const SLOT_ELIGIBILITY = {
+      QB: ['QB'],
+      RB: ['RB'],
+      WR: ['WR'],
+      TE: ['TE'],
+      FLEX: ['RB', 'WR', 'TE'],
+      SUPER_FLEX: ['QB', 'RB', 'WR', 'TE'],
+    };
+
+    const SLOT_TOKEN_MAP = {
+      QB: 'QB',
+      RB: 'RB',
+      WR: 'WR',
+      TE: 'TE',
+      Q: 'QB',
+      R: 'RB',
+      W: 'WR',
+      T: 'TE',
+    };
+
     const SLOT_ALIASES = {
       'WR/RB': 'FLEX',
       'RB/WR': 'FLEX',
@@ -51,13 +71,13 @@
     const POSITION_ORDER = ['QB', 'RB', 'WR', 'TE'];
 
     const LINEUP_COLORS = {
-      QB: ['rgba(255, 58, 117, 0.85)', 'rgba(255, 58, 117, 0.45)'],
-      RB: ['rgba(0, 235, 199, 0.9)', 'rgba(0, 235, 199, 0.45)'],
-      WR: ['rgba(88, 167, 255, 0.9)', 'rgba(88, 167, 255, 0.45)'],
-      TE: ['rgba(180, 105, 255, 0.85)', 'rgba(180, 105, 255, 0.45)'],
-      FLEX: ['rgba(255, 127, 80, 0.85)', 'rgba(255, 127, 80, 0.45)'],
-      SUPER_FLEX: ['rgba(220, 220, 220, 0.85)', 'rgba(220, 220, 220, 0.35)'],
-      Picks: ['rgba(255, 199, 0, 0.85)', 'rgba(255, 199, 0, 0.45)'],
+      QB: ['rgba(255, 109, 154, 0.9)', 'rgba(255, 58, 117, 0.45)'],
+      RB: ['rgba(0, 224, 189, 0.9)', 'rgba(0, 177, 150, 0.45)'],
+      WR: ['rgba(92, 176, 255, 0.9)', 'rgba(110, 216, 255, 0.45)'],
+      TE: ['rgba(194, 135, 255, 0.9)', 'rgba(133, 94, 255, 0.45)'],
+      FLEX: ['rgba(255, 189, 120, 0.9)', 'rgba(255, 149, 102, 0.45)'],
+      SUPER_FLEX: ['rgba(135, 224, 255, 0.9)', 'rgba(88, 200, 255, 0.45)'],
+      Picks: ['rgba(255, 222, 140, 0.9)', 'rgba(255, 194, 82, 0.45)'],
     };
 
     const state = {
@@ -75,12 +95,13 @@
       charts: {
         lineup: null,
         overall: null,
-        radar: null,
       },
       lineupData: null,
       teams: [],
       leaderboards: { QB: [], RB: [], WR: [], TE: [] },
       activeLeaderboard: 'QB',
+      slotConfig: [],
+      scoringRanks: {},
     };
 
     elements.usernameInput?.addEventListener('keydown', (event) => {
@@ -394,9 +415,13 @@
           fetchWithCache(`https://api.sleeper.app/v1/league/${leagueId}/traded_picks`),
         ]);
 
-        const processed = processLeagueData(rosters, users, tradedPicks, leagueInfo);
+        const slotConfig = deriveStarterSlots(leagueInfo.roster_positions || []);
+        state.slotConfig = slotConfig;
+
+        const processed = processLeagueData(rosters, users, tradedPicks, leagueInfo, slotConfig);
         state.teams = processed.teams;
         state.leaderboards = processed.leaderboards;
+        state.scoringRanks = processed.scoringRanks;
         renderSummaryStats(state.teams);
         renderLineupChart(state.teams);
         renderOverallChart(state.teams);
@@ -418,7 +443,7 @@
       }
     }
 
-    function processLeagueData(rosters, users, tradedPicks, leagueInfo) {
+    function processLeagueData(rosters, users, tradedPicks, leagueInfo, slotConfig) {
       const userMap = Array.isArray(users)
         ? users.reduce((acc, user) => {
             acc[user.user_id] = user;
@@ -427,6 +452,8 @@
         : {};
 
       const leaderboards = { QB: [], RB: [], WR: [], TE: [] };
+
+      const scoringTotals = [];
 
       const teams = (Array.isArray(rosters) ? rosters : []).map((roster) => {
         const owner = userMap[roster.owner_id] || userMap[roster.co_owner_id];
@@ -467,20 +494,60 @@
         });
 
         const overallPositional = { QB: 0, RB: 0, WR: 0, TE: 0, Picks: 0 };
-        const allPlayers = (roster.players || []).map((playerId) => {
-          const playerInfo = state.players[playerId];
-          const ktc = getKtcValue(playerId);
-          const pos = playerInfo?.position;
-          if (pos && overallPositional[pos] !== undefined) {
-            overallPositional[pos] += ktc;
+
+        const playersDetailed = (roster.players || [])
+          .map((playerId) => {
+            const playerInfo = state.players[playerId];
+            if (!playerInfo) return null;
+            const pos = playerInfo.position;
+            const ktc = getKtcValue(playerId);
+            const stats = state.playerStats[playerId] || {};
+            const totalFpts = stats.total ?? 0;
+            const ppg = stats.ppg ?? (stats.games ? stats.total / stats.games : 0);
+            return {
+              id: playerId,
+              pos,
+              ktc,
+              name: formatPlayerName(playerInfo),
+              totalFpts,
+              ppg,
+            };
+          })
+          .filter((player) => player && player.pos)
+          .sort((a, b) => b.ktc - a.ktc);
+
+        playersDetailed.forEach((player) => {
+          if (overallPositional[player.pos] !== undefined) {
+            overallPositional[player.pos] += player.ktc;
           }
+        });
+
+        const playersByPos = playersDetailed.reduce((acc, player) => {
+          if (!acc[player.pos]) {
+            acc[player.pos] = [];
+          }
+          acc[player.pos].push(player);
+          return acc;
+        }, {});
+
+        Object.values(playersByPos).forEach((group) => {
+          group.sort((a, b) => b.ktc - a.ktc);
+        });
+
+        const optimalSlotMap = allocateOptimalStarters(slotConfig, playersByPos);
+
+        const optimalSlots = slotConfig.map((slot) => {
+          const allocation = optimalSlotMap[slot.key];
           return {
-            id: playerId,
-            pos,
-            ktc,
-            name: formatPlayerName(playerInfo),
+            slotKey: slot.key,
+            slot: slot.slot,
+            label: slot.label,
+            value: allocation?.ktc ?? 0,
+            player: allocation || null,
           };
-        }).sort((a, b) => b.ktc - a.ktc);
+        });
+
+        const allPlayers = playersDetailed.slice();
 
         getOwnedPicks(roster.roster_id, rosters, tradedPicks, leagueInfo).forEach((pick) => {
           overallPositional.Picks += getKtcValue(pick.label);
@@ -501,23 +568,26 @@
 
         const record = ties ? `${wins}-${losses}-${ties}` : `${wins}-${losses}`;
 
-        (roster.players || []).forEach((playerId) => {
-          const playerInfo = state.players[playerId];
-          if (!playerInfo) return;
-          const pos = playerInfo.position;
-          if (!leaderboards[pos]) return;
-          const stats = state.playerStats[playerId] || {};
-          const total = stats.total ?? 0;
-          const ppg = stats.ppg ?? (stats.games ? stats.total / stats.games : 0);
-          if (total <= 0) return;
-          leaderboards[pos].push({
-            playerId,
-            name: formatPlayerName(playerInfo),
-            owner: teamName,
-            nflTeam: playerInfo.team || '--',
-            total,
-            ppg,
-          });
+        playersDetailed.forEach((player) => {
+          if (player.totalFpts > 0 && leaderboards[player.pos]) {
+            leaderboards[player.pos].push({
+              playerId: player.id,
+              name: player.name,
+              owner: teamName,
+              nflTeam: state.players[player.id]?.team || '--',
+              total: player.totalFpts,
+              ppg: player.ppg,
+            });
+          }
+
+          if (player.totalFpts > 0) {
+            scoringTotals.push({
+              playerId: player.id,
+              total: player.totalFpts,
+              ppg: player.ppg,
+              name: player.name,
+            });
+          }
         });
 
         return {
@@ -527,6 +597,9 @@
           startersBySlot,
           startersValueByPos,
           allPlayers,
+          optimalSlots,
+          optimalSlotMap,
+          playersDetailed,
           totalValue,
           startersValueTotal,
           starterPpgTotal,
@@ -551,8 +624,25 @@
           .slice(0, 10);
       });
 
+      const scoringRanks = {};
+      scoringTotals
+        .sort((a, b) => {
+          if (b.total !== a.total) return b.total - a.total;
+          if (b.ppg !== a.ppg) return b.ppg - a.ppg;
+          return a.name.localeCompare(b.name);
+        })
+        .forEach((entry, index) => {
+          if (!scoringRanks[entry.playerId]) {
+            scoringRanks[entry.playerId] = {
+              rank: index + 1,
+              total: entry.total,
+              ppg: entry.ppg,
+            };
+          }
+        });
+
       teams.sort((a, b) => b.totalValue - a.totalValue);
-      return { teams, leaderboards };
+      return { teams, leaderboards, scoringRanks };
     }
 
     function normalizeSlot(slot) {
@@ -566,6 +656,113 @@
       if (slot.includes('WR')) return 'WR';
       if (slot.includes('TE')) return 'TE';
       return null;
+    }
+
+    function deriveStarterSlots(rosterPositions) {
+      const counts = {};
+      const config = [];
+      (rosterPositions || []).forEach((slotRaw) => {
+        const normalized = normalizeSlot(slotRaw);
+        if (!normalized) return;
+        counts[normalized] = (counts[normalized] || 0) + 1;
+        const index = counts[normalized];
+        const baseLabel = SLOT_LABELS[normalized] || normalized;
+        const label = index > 1 ? `${baseLabel} ${index}` : baseLabel;
+        const eligiblePositions = getEligiblePositions(slotRaw, normalized);
+        config.push({
+          key: `${normalized}-${index}`,
+          slot: normalized,
+          label,
+          eligiblePositions,
+        });
+      });
+      return config;
+    }
+
+    function getEligiblePositions(slotRaw, normalized) {
+      const base = SLOT_ELIGIBILITY[normalized] ? [...SLOT_ELIGIBILITY[normalized]] : [];
+      if (!slotRaw) return base.length ? base : [normalized];
+
+      const upper = String(slotRaw).toUpperCase();
+      if (SLOT_ELIGIBILITY[upper]) {
+        return [...SLOT_ELIGIBILITY[upper]];
+      }
+
+      const cleaned = upper.replace(/[^A-Z\/]/g, '');
+      if (!cleaned.includes('/')) {
+        return base.length ? base : [normalized];
+      }
+
+      const tokens = cleaned
+        .split('/')
+        .map((token) => SLOT_TOKEN_MAP[token] || token)
+        .filter((token) => POSITION_ORDER.includes(token));
+
+      if (tokens.length) {
+        return Array.from(new Set(tokens));
+      }
+
+      return base.length ? base : [normalized];
+    }
+
+    function allocateOptimalStarters(slotConfig = [], playersByPos = {}) {
+      const available = {};
+      Object.keys(playersByPos).forEach((pos) => {
+        available[pos] = playersByPos[pos].slice();
+      });
+
+      const takeBest = (positions) => {
+        let chosenPlayer = null;
+        let chosenPos = null;
+        positions.forEach((pos) => {
+          const pool = available[pos];
+          if (!pool || pool.length === 0) return;
+          const candidate = pool[0];
+          if (!chosenPlayer || candidate.ktc > chosenPlayer.ktc) {
+            chosenPlayer = candidate;
+            chosenPos = pos;
+          }
+        });
+        if (chosenPlayer && chosenPos) {
+          available[chosenPos].shift();
+          return { ...chosenPlayer };
+        }
+        return null;
+      };
+
+      const results = {};
+      slotConfig.forEach((slot) => {
+        const eligible = (slot.eligiblePositions && slot.eligiblePositions.length > 0)
+          ? slot.eligiblePositions
+          : SLOT_ELIGIBILITY[slot.slot] || [slot.slot];
+
+        let selection = null;
+        if (slot.slot === 'SUPER_FLEX') {
+          selection = takeBest(['QB']);
+          if (!selection) {
+            selection = takeBest(eligible);
+          }
+        } else {
+          selection = takeBest(eligible);
+        }
+
+        results[slot.key] = selection;
+      });
+
+      return results;
+    }
+
+    function formatRadarName(name) {
+      if (!name) return 'No Player';
+      if (name.length <= 18) return name;
+      const parts = name.split(' ');
+      if (parts.length >= 2) {
+        const first = parts[0];
+        const last = parts[parts.length - 1];
+        const lastInitial = last ? `${last.charAt(0)}.` : '';
+        return `${first} ${lastInitial}`.trim();
+      }
+      return name.slice(0, 18);
     }
 
     function formatPlayerName(playerInfo) {
@@ -642,8 +839,6 @@
       }
 
       const totalTeams = teams.length;
-      const overallRank = computeRank(teams, (team) => team.isUserTeam);
-
       const starterValueRank = computeRank(
         [...teams].sort((a, b) => b.startersValueTotal - a.startersValueTotal),
         (team) => team.isUserTeam,
@@ -659,20 +854,37 @@
         (team) => team.isUserTeam,
       );
 
-      const positionalRanks = {};
-      POSITION_ORDER.forEach((pos) => {
-        positionalRanks[pos] = computeRank(
-          [...teams].sort((a, b) => (b.startersValueByPos[pos] || 0) - (a.startersValueByPos[pos] || 0)),
-          (team) => team.isUserTeam,
-        );
-      });
+      const standingsOrder = teams
+        .slice()
+        .sort((a, b) => {
+          const winPctA = computeWinPct(a.wins, a.losses, a.ties);
+          const winPctB = computeWinPct(b.wins, b.losses, b.ties);
+          if (winPctB !== winPctA) return winPctB - winPctA;
+          if (b.wins !== a.wins) return b.wins - a.wins;
+          if (b.totalFpts !== a.totalFpts) return b.totalFpts - a.totalFpts;
+          return a.teamName.localeCompare(b.teamName);
+        });
+
+      const standingsRank = computeRank(standingsOrder, (team) => team.isUserTeam);
+
+      const topScorer = (userTeam.playersDetailed || [])
+        .slice()
+        .sort((a, b) => b.totalFpts - a.totalFpts)
+        .find((player) => player.totalFpts > 0);
+
+      const topScorerRank = topScorer ? state.scoringRanks[topScorer.id]?.rank : null;
+      const totalRankedPlayers = Object.keys(state.scoringRanks || {}).length;
 
       const chips = [
         {
-          label: 'Overall Rank',
-          value: formatRankValue(overallRank),
-          meta: totalTeams ? `of ${totalTeams}` : '',
-          accent: overallRank ? getRankColor(overallRank, totalTeams) : undefined,
+          label: 'Ranking',
+          value: standingsRank ? ordinal(standingsRank) : 'NA',
+          meta: userTeam.record
+            ? `Record ${userTeam.record}${totalTeams ? ` • ${totalTeams}-Team League` : ''}`
+            : totalTeams
+              ? `${totalTeams}-Team League`
+              : '',
+          accent: standingsRank ? getRankColor(standingsRank, totalTeams) : undefined,
         },
         {
           label: 'Total Roster Value',
@@ -682,44 +894,31 @@
         {
           label: 'Starter Value',
           value: formatNumber(userTeam.startersValueTotal),
-          meta: starterValueRank ? `Rank ${starterValueRank}/${totalTeams}` : 'Rank NA',
+          meta: starterValueRank ? `#${starterValueRank} of ${totalTeams}` : 'Rank NA',
           accent: starterValueRank ? getRankColor(starterValueRank, totalTeams) : undefined,
         },
         {
           label: 'Total FPTS',
           value: userTeam.totalFpts.toFixed(1),
-          meta: fptsRank ? `Rank ${fptsRank}/${totalTeams}` : 'Rank NA',
+          meta: fptsRank ? `#${fptsRank} of ${totalTeams}` : 'Rank NA',
           accent: fptsRank ? getRankColor(fptsRank, totalTeams) : undefined,
         },
         {
           label: 'Starter PPG',
           value: userTeam.starterPpgTotal.toFixed(1),
-          meta: starterPpgRank ? `Rank ${starterPpgRank}/${totalTeams}` : 'Rank NA',
+          meta: starterPpgRank ? `#${starterPpgRank} of ${totalTeams}` : 'Rank NA',
           accent: starterPpgRank ? getRankColor(starterPpgRank, totalTeams) : undefined,
         },
         {
-          label: 'QB Starter Rank',
-          value: formatRankValue(positionalRanks.QB),
-          meta: totalTeams ? `of ${totalTeams}` : '',
-          accent: positionalRanks.QB ? getRankColor(positionalRanks.QB, totalTeams) : undefined,
-        },
-        {
-          label: 'RB Starter Rank',
-          value: formatRankValue(positionalRanks.RB),
-          meta: totalTeams ? `of ${totalTeams}` : '',
-          accent: positionalRanks.RB ? getRankColor(positionalRanks.RB, totalTeams) : undefined,
-        },
-        {
-          label: 'WR Starter Rank',
-          value: formatRankValue(positionalRanks.WR),
-          meta: totalTeams ? `of ${totalTeams}` : '',
-          accent: positionalRanks.WR ? getRankColor(positionalRanks.WR, totalTeams) : undefined,
-        },
-        {
-          label: 'TE Starter Rank',
-          value: formatRankValue(positionalRanks.TE),
-          meta: totalTeams ? `of ${totalTeams}` : '',
-          accent: positionalRanks.TE ? getRankColor(positionalRanks.TE, totalTeams) : undefined,
+          label: 'Top Scoring Player',
+          value: topScorer ? topScorer.name : 'No data',
+          meta: topScorer
+            ? `${topScorer.totalFpts.toFixed(1)} pts${topScorerRank ? ` • #${topScorerRank}` : ''}`
+            : 'No fantasy scoring yet',
+          accent:
+            topScorer && topScorerRank
+              ? getRankColor(topScorerRank, totalRankedPlayers || totalTeams || 1)
+              : undefined,
         },
       ];
 
@@ -963,84 +1162,210 @@
     }
 
     function renderRadarChart(teams) {
-      const userTeam = teams.find((team) => team.isUserTeam);
-      if (!userTeam) return;
-
-      const positions = POSITION_ORDER;
-      const leagueAverages = {};
-      const userValues = {};
-
-      positions.forEach((pos) => {
-        let totalLeagueValue = 0;
-        teams.forEach((team) => {
-          const topTwo = team.allPlayers.filter((player) => player.pos === pos).slice(0, 2);
-          totalLeagueValue += topTwo.reduce((sum, player) => sum + player.ktc, 0);
-        });
-        leagueAverages[pos] = teams.length > 0 ? totalLeagueValue / teams.length : 0;
-
-        const userTopTwo = userTeam.allPlayers.filter((player) => player.pos === pos).slice(0, 2);
-        userValues[pos] = userTopTwo.reduce((sum, player) => sum + player.ktc, 0);
-      });
-
-      if (state.charts.radar) {
-        state.charts.radar.destroy();
+      const container = elements.radarCanvas;
+      if (!container || !window.Plotly) {
+        return;
       }
 
-      state.charts.radar = new Chart(elements.radarCanvas, {
-        type: 'radar',
-        data: {
-          labels: positions.map((pos) => SLOT_LABELS[pos] || pos),
-          datasets: [
-            {
-              label: 'Your Team (Top 2)',
-              data: positions.map((pos) => userValues[pos] || 0),
-              fill: true,
-              backgroundColor: 'rgba(118, 109, 255, 0.35)',
-              borderColor: 'rgba(118, 109, 255, 0.95)',
-              pointBackgroundColor: 'rgba(118, 109, 255, 1)',
-              pointBorderColor: '#fff',
-              pointRadius: 4,
-            },
-            {
-              label: 'League Average (Top 2)',
-              data: positions.map((pos) => leagueAverages[pos] || 0),
-              fill: true,
-              backgroundColor: 'rgba(66, 194, 255, 0.25)',
-              borderColor: 'rgba(66, 194, 255, 0.9)',
-              pointBackgroundColor: 'rgba(66, 194, 255, 1)',
-              pointBorderColor: '#fff',
-              pointRadius: 4,
-            },
-          ],
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          scales: {
-            r: {
-              angleLines: { color: 'rgba(234, 235, 240, 0.1)' },
-              grid: { color: 'rgba(234, 235, 240, 0.1)' },
-              pointLabels: {
-                color: '#EAEBF0',
-                font: { size: 13, weight: '500', family: "'Product Sans', 'Google Sans', sans-serif" },
-              },
-              ticks: {
-                color: '#EAEBF0',
-                backdropColor: 'rgba(13, 14, 27, 0.65)',
-                display: true,
-                showLabelBackdrop: true,
-                callback: (value) => formatNumber(value),
-              },
-            },
-          },
-          plugins: {
-            legend: {
-              position: 'bottom',
-              labels: { color: '#EAEBF0' },
-            },
-          },
-        },
+      const slotConfig = state.slotConfig || [];
+      if (!teams.length || !slotConfig.length) {
+        Plotly.purge(container);
+        container.innerHTML = '<div class="analyzer-empty">No starter configuration available.</div>';
+        return;
+      }
+
+      const userTeam = teams.find((team) => team.isUserTeam);
+      if (!userTeam) {
+        Plotly.purge(container);
+        return;
+      }
+
+      container.innerHTML = '';
+
+      const axisLabels = slotConfig.map((slot) => slot.label);
+      const userSeries = slotConfig.map((slot) => userTeam.optimalSlotMap?.[slot.key]?.ktc ?? 0);
+
+      const leagueAverages = slotConfig.map((slot) => {
+        let total = 0;
+        let count = 0;
+        teams.forEach((team) => {
+          const value = team.optimalSlotMap?.[slot.key]?.ktc;
+          if (Number.isFinite(value) && value > 0) {
+            total += value;
+            count += 1;
+          }
+        });
+        return count > 0 ? total / count : 0;
       });
+
+      const maxValue = Math.max(1, ...userSeries, ...leagueAverages);
+      const normalize = (value) => (value > 0 ? (value / maxValue) * 100 : 0);
+
+      const normalizedUser = userSeries.map((value) => normalize(value));
+      const normalizedLeague = leagueAverages.map((value) => normalize(value));
+
+      const closedLabels = [...axisLabels, axisLabels[0]];
+      const closedUser = [...normalizedUser, normalizedUser[0]];
+      const closedLeague = [...normalizedLeague, normalizedLeague[0]];
+
+      const bandStyles = [
+        { value: 100, fill: '#2c334f62', line: '#525a7739', width: 1 },
+        { value: 80, fill: '#2D345153', line: '#525a7729', width: 0.9 },
+        { value: 60, fill: '#2F365250', line: '#525a7729', width: 0.9 },
+        { value: 40, fill: '#30375455', line: '#525a7729', width: 0.9 },
+        { value: 20, fill: '#31385565', line: '#525a7735', width: 0.9 },
+      ];
+
+      const backgroundTraces = bandStyles.map((style) => ({
+        type: 'scatterpolar',
+        r: new Array(closedLabels.length).fill(style.value),
+        theta: closedLabels,
+        mode: 'lines',
+        fill: 'toself',
+        opacity: 1,
+        fillcolor: style.fill,
+        line: { color: style.line, width: style.width },
+        hoverinfo: 'skip',
+        showlegend: false,
+      }));
+
+      const userMarkerColors = [...axisLabels.map(() => '#766dff'), 'rgba(0,0,0,0)'];
+      const userMarkerSizes = [...axisLabels.map(() => 6), 0];
+      const leagueMarkerColors = [...axisLabels.map(() => '#42c2ff'), 'rgba(0,0,0,0)'];
+      const leagueMarkerSizes = [...axisLabels.map(() => 5), 0];
+
+      const leagueTrace = {
+        type: 'scatterpolar',
+        r: closedLeague,
+        theta: closedLabels,
+        mode: 'lines+markers',
+        fill: 'toself',
+        fillcolor: 'rgba(66, 194, 255, 0.28)',
+        line: { color: '#42c2ff', width: 2 },
+        marker: { color: leagueMarkerColors, size: leagueMarkerSizes, line: { color: '#0D0E1B', width: 1 } },
+        hoverinfo: 'skip',
+        showlegend: false,
+      };
+
+      const userTrace = {
+        type: 'scatterpolar',
+        r: closedUser,
+        theta: closedLabels,
+        mode: 'lines+markers',
+        fill: 'toself',
+        fillcolor: 'rgba(118, 109, 255, 0.32)',
+        line: { color: '#766dff', width: 2 },
+        marker: { color: userMarkerColors, size: userMarkerSizes, line: { color: '#0D0E1B', width: 1 } },
+        hoverinfo: 'skip',
+        showlegend: false,
+      };
+
+      const textEntries = slotConfig.map((slot, index) => {
+        const allocation = userTeam.optimalSlotMap?.[slot.key];
+        const userValue = userSeries[index] || 0;
+        const leagueValue = leagueAverages[index] || 0;
+        const diff = userValue - leagueValue;
+
+        let diffLabel;
+        let diffColor;
+        if (!allocation) {
+          diffLabel = 'No eligible';
+          diffColor = '#9096C0';
+        } else if (Math.abs(diff) < 1) {
+          diffLabel = 'Even vs Avg';
+          diffColor = '#BDC1D8';
+        } else {
+          const symbol = diff > 0 ? '+' : '−';
+          diffLabel = `${symbol}${formatNumber(Math.abs(diff))} vs Avg`;
+          diffColor = diff > 0 ? '#00F5A0' : '#FF47A6';
+        }
+
+        const valueLabel = allocation ? `${formatNumber(userValue)} KTC` : '0 KTC';
+        const primary = allocation ? formatRadarName(allocation.name) : slot.label;
+
+        return `<span style="color:#EAEBF0;">${primary}</span><br><span style="color:${diffColor};">${diffLabel}</span><br><span style="color:#9096C0;">${valueLabel}</span>`;
+      });
+
+      const textTrace = {
+        type: 'scatterpolar',
+        r: normalizedUser,
+        theta: axisLabels,
+        mode: 'text',
+        text: textEntries,
+        textposition: 'top center',
+        textfont: { size: 10, family: "'Product Sans','Google Sans','Quicksand',sans-serif" },
+        hoverinfo: 'skip',
+        showlegend: false,
+      };
+
+      const traces = [...backgroundTraces, leagueTrace, userTrace, textTrace];
+
+      const layout = {
+        polar: {
+          bgcolor: 'rgba(0,0,0,0)',
+          radialaxis: {
+            range: [0, 100],
+            showgrid: false,
+            ticks: '',
+            showticklabels: false,
+            showline: false,
+            linewidth: 0,
+            linecolor: 'rgba(0,0,0,0)',
+          },
+          angularaxis: {
+            showgrid: false,
+            showline: false,
+            tickmode: 'array',
+            tickvals: axisLabels,
+            ticktext: axisLabels,
+            tickfont: { color: '#EAEBF0', size: 11, family: "'Product Sans','Google Sans','Quicksand',sans-serif" },
+            direction: 'counterclockwise',
+            rotation: 90,
+            layer: 'above traces',
+            categoryarray: axisLabels,
+            categoryorder: 'array',
+          },
+        },
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        showlegend: false,
+        annotations: [
+          {
+            xref: 'paper',
+            yref: 'paper',
+            x: 0.5,
+            y: 1.12,
+            text: userTeam.teamName,
+            showarrow: false,
+            font: { color: '#766dff', size: 18, family: "'Product Sans','Google Sans','Quicksand',sans-serif" },
+            xanchor: 'center',
+            yanchor: 'bottom',
+          },
+          {
+            xref: 'paper',
+            yref: 'paper',
+            x: 0.5,
+            y: -0.08,
+            text: 'League Average',
+            showarrow: false,
+            font: { color: '#42c2ff', size: 12, family: "'Product Sans','Google Sans','Quicksand',sans-serif" },
+            xanchor: 'center',
+            yanchor: 'top',
+          },
+        ],
+        margin: { l: 45, r: 45, t: 70, b: 30 },
+        hovermode: false,
+        dragmode: false,
+      };
+
+      Plotly.react(
+        container,
+        traces,
+        layout,
+        {
+          displayModeBar: false,
+          responsive: true,
+        },
+      );
     }
 
     function renderStandings(teams) {
@@ -1132,11 +1457,6 @@
     function computeRank(list, predicate) {
       const index = list.findIndex(predicate);
       return index === -1 ? null : index + 1;
-    }
-
-    function formatRankValue(rank) {
-      if (!rank) return 'NA';
-      return `${rank}`;
     }
 
     function formatNumber(value) {
