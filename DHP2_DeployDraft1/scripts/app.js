@@ -1070,12 +1070,16 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
             'SNP%': 'snp_pct'
         };
 
-        
+
         // === Label builder and no-fallback config (added) ===
+        const STAT_LABEL_OVERRIDES = {
+            ts_per_rr: 'TS%'
+        };
+
         function buildStatLabels() {
             const labels = {};
             for (const [header, key] of Object.entries(PLAYER_STAT_HEADER_MAP)) {
-                labels[key] = header;
+                labels[key] = STAT_LABEL_OVERRIDES[key] || header;
             }
             labels['fpts'] = 'FPTS'; // computed, not from sheet
             labels['ppg'] = 'PPG';   // keep if used elsewhere
@@ -2622,7 +2626,7 @@ const SEASON_META_HEADERS = {
                     'rec_yar': 'Yards After Catch',
                     'yprr': 'Yards per Route Run',
                     'first_down_rec_rate': 'First Down Reception Rate',
-                    'ts_per_rr': 'Targets per Route Run',
+                    'ts_per_rr': 'Target Share Percentage',
                     'rr': 'Routes Run',
                     'ypr': 'Yards per Reception',
                     'fum': 'Fumbles Lost',
@@ -3208,13 +3212,58 @@ const SEASON_META_HEADERS = {
         // --- Formatting Helpers ---
         function deriveRookieYear(player) {
             if (!player) return null;
-            let ry = player.metadata?.rookie_year ? Number(player.metadata.rookie_year) : 0;
-            const exp = player.years_exp;
-            const expNum = (exp === '' || exp === null || exp === undefined) ? null : Number(exp);
-            if ((!ry || ry === 0) && expNum === 0) {
-                return new Date().getFullYear();
+
+            const parseYearValue = (value) => {
+                if (value === undefined || value === null) return null;
+                const numeric = Number.parseInt(String(value).trim(), 10);
+                if (!Number.isFinite(numeric)) return null;
+                const currentYear = new Date().getFullYear();
+                if (numeric >= 1930 && numeric <= currentYear + 1) return numeric;
+                return null;
+            };
+
+            const candidateYears = [
+                player.metadata?.rookie_year,
+                player.metadata?.rookie,
+                player.rookie_year,
+                player.rookie,
+                player.metadata?.player_rookie_year,
+                player.metadata?.draft_year,
+                player.draft_year
+            ];
+
+            for (const candidate of candidateYears) {
+                const parsed = parseYearValue(candidate);
+                if (parsed) return parsed;
             }
-            return ry > 0 ? ry : null;
+
+            const experienceCandidates = [
+                player.years_exp,
+                player.metadata?.years_exp,
+                player.metadata?.exp,
+                player.metadata?.experience,
+                player.experience
+            ];
+
+            for (const candidate of experienceCandidates) {
+                if (candidate === undefined || candidate === null) continue;
+                if (typeof candidate === 'string') {
+                    const normalized = candidate.trim().toUpperCase();
+                    if (!normalized || normalized === 'NA' || normalized === 'N/A') continue;
+                    if (normalized === 'R' || normalized === 'ROOKIE') {
+                        return new Date().getFullYear();
+                    }
+                }
+
+                const numeric = Number.parseInt(candidate, 10);
+                if (!Number.isFinite(numeric)) continue;
+                const currentYear = new Date().getFullYear();
+                if (numeric <= 0) return currentYear;
+                const derivedYear = currentYear - numeric;
+                if (derivedYear >= 1930 && derivedYear <= currentYear + 1) return derivedYear;
+            }
+
+            return null;
         }
         function getPosRankColor(posRank) {
             if (!posRank || typeof posRank !== 'string') return 'var(--color-text-secondary)';
@@ -3252,7 +3301,7 @@ const SEASON_META_HEADERS = {
         }
 
         function getPlayerVitals(playerId) {
-            const fallback = { age: '—', height: '—', weight: '—' };
+            const fallback = { age: '—', height: '—', weight: '—', experience: '—', rookieYear: '—' };
             const playerData = state.players?.[playerId];
             if (!playerData) return fallback;
 
@@ -3383,10 +3432,85 @@ const SEASON_META_HEADERS = {
                 return null;
             };
 
+            const parseRookieYear = () => {
+                const candidates = collect(
+                    playerData.metadata?.rookie_year,
+                    playerData.metadata?.rookie,
+                    playerData.rookie_year,
+                    playerData.rookie,
+                    playerData.metadata?.player_rookie_year,
+                    playerData.metadata?.draft_year,
+                    playerData.draft_year
+                );
+
+                const parseYearValue = (value) => {
+                    if (value === undefined || value === null) return null;
+                    const numeric = Number.parseInt(String(value).trim(), 10);
+                    if (!Number.isFinite(numeric)) return null;
+                    const currentYear = new Date().getFullYear();
+                    if (numeric >= 1930 && numeric <= currentYear + 1) return numeric;
+                    return null;
+                };
+
+                for (const candidate of candidates) {
+                    const parsed = parseYearValue(candidate);
+                    if (parsed) return parsed;
+                }
+
+                const derived = deriveRookieYear(playerData);
+                return derived ?? null;
+            };
+
+            const parseExperience = (rookieYearValue) => {
+                const candidates = collect(
+                    playerData.years_exp,
+                    playerData.metadata?.years_exp,
+                    playerData.metadata?.exp,
+                    playerData.metadata?.experience,
+                    playerData.experience
+                );
+
+                const parseExperienceValue = (candidate) => {
+                    if (candidate === undefined || candidate === null) return null;
+                    if (typeof candidate === 'string') {
+                        const normalized = candidate.trim().toUpperCase();
+                        if (!normalized || normalized === 'NA' || normalized === 'N/A') return null;
+                        if (normalized === 'R' || normalized === 'ROOKIE') return 'R';
+                    }
+
+                    const numeric = Number.parseInt(candidate, 10);
+                    if (!Number.isFinite(numeric)) return null;
+                    if (numeric <= 0) return 'R';
+                    return String(numeric);
+                };
+
+                for (const candidate of candidates) {
+                    const parsed = parseExperienceValue(candidate);
+                    if (parsed) return parsed;
+                }
+
+                if (rookieYearValue) {
+                    const rookieYearNumber = Number.parseInt(rookieYearValue, 10);
+                    if (Number.isFinite(rookieYearNumber)) {
+                        const currentYear = new Date().getFullYear();
+                        const diff = currentYear - rookieYearNumber;
+                        if (diff <= 0) return 'R';
+                        if (diff > 0 && diff < 60) return String(diff);
+                    }
+                }
+
+                return null;
+            };
+
+            const rookieYear = parseRookieYear();
+            const experience = parseExperience(rookieYear);
+
             return {
                 age: parseAge() ?? '—',
                 height: parseHeight() ?? '—',
-                weight: parseWeight() ?? '—'
+                weight: parseWeight() ?? '—',
+                experience: experience ?? '—',
+                rookieYear: rookieYear ?? '—'
             };
         }
 
@@ -3396,6 +3520,8 @@ const SEASON_META_HEADERS = {
 
             const items = [
                 { label: 'AGE', value: vitals.age },
+                { label: 'EXP', value: vitals.experience },
+                { label: 'RY', value: vitals.rookieYear },
                 { label: 'HEIGHT', value: vitals.height },
                 { label: 'WEIGHT', value: vitals.weight }
             ];
