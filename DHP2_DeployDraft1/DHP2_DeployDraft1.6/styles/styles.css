@@ -3641,6 +3641,53 @@ body[data-page="rosters"] #secondary-header-row #analyzeLeagueButton.active {
         border-top: 1px solid var(--color-panel-border);
         border-bottom: 1px solid var(--color-panel-border);
     }
+
+    @media (min-width: 1024px) {
+        .comparison-summary-chips-row {
+            justify-content: space-around;
+        }
+
+        .comparison-summary-chips-row .summary-chips-container,
+        .player-name-header-container {
+            flex: 0 1 clamp(16rem, 23vw, 20rem);
+            width: clamp(16rem, 23vw, 20rem);
+        }
+
+        .player-name-header-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .player-name-header {
+            width: 100%;
+        }
+
+        .comparison-summary-chips-row .summary-chip {
+            width: 100%;
+        }
+
+        .player-name-header .player-vitals--compare {
+            width: 100%;
+            justify-content: space-between;
+            gap: 1.75rem;
+        }
+
+        .comparison-summary-chips-row .summary-chip h4 {
+            display: flex;
+            justify-content: center;
+            align-items: baseline;
+            gap: 0.45rem;
+        }
+
+        .comparison-summary-chips-row .chip-values {
+            gap: 0.6rem;
+        }
+
+        .comparison-summary-chips-row .chip-separator {
+            margin: 0 0.35rem;
+        }
+    }
     
     /* · · Table Header · · */
     .player-header h4 {
