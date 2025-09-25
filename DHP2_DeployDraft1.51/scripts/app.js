@@ -759,6 +759,15 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
             closeComparisonModal();
         }
 
+        function handleCloseTradePreview() {
+            const keepUserTeam = Boolean(state.userTeamName && state.teamsToCompare.has(state.userTeamName));
+            handleClearCompare(keepUserTeam);
+            state.isTradeCollapsed = true;
+            if (tradeSimulator) {
+                tradeSimulator.classList.add('collapsed');
+            }
+        }
+
 
         // --- Position Filter Logic ---
         function handleClearFilters() {
@@ -2957,6 +2966,10 @@ const SEASON_META_HEADERS = {
               <i class="fa-solid fa-eraser"></i>
               <span class="label">Clear</span>
             </button>
+              <button id="closeTradeButton" type="button">
+              <i class="fa-solid fa-circle-xmark"></i>
+              <span class="label">Close</span>
+            </button>
             </div>
           </div>
         
@@ -3053,6 +3066,7 @@ const SEASON_META_HEADERS = {
             tradeSimulator.classList.toggle('collapsed', state.isTradeCollapsed);
 
             document.getElementById('clearTradeButton').addEventListener('click', clearTrade);
+            document.getElementById('closeTradeButton').addEventListener('click', handleCloseTradePreview);
             document.getElementById('collapseTradeButton').addEventListener('click', () => {
                 tradeSimulator.classList.add('collapsed');
                 state.isTradeCollapsed = true;
