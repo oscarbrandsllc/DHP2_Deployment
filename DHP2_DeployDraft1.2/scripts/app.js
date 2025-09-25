@@ -46,6 +46,7 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
         const modalBody = document.getElementById('modal-body');
         const playerComparisonModal = document.getElementById('player-comparison-modal');
         const comparisonBackgroundOverlay = document.getElementById('comparison-modal-background-overlay');
+        let teardownCompareVitalsSizing = null;
 
         const COMPARE_BUTTON_PREVIEW_HTML = '<span class="button-text">Preview</span>';
         const COMPARE_BUTTON_SHOW_ALL_HTML = '<span class="compare-show-all-stack"><i aria-hidden="true" class="fa-solid fa-arrows-left-right-to-line compare-show-all-icon"></i><span class="compare-show-all-label">Show All</span></span>';
@@ -2067,6 +2068,10 @@ const SEASON_META_HEADERS = {
 
         function renderPlayerComparison(players) {
             const comparisonModalBody = document.getElementById('comparison-modal-body');
+            if (typeof teardownCompareVitalsSizing === 'function') {
+                teardownCompareVitalsSizing();
+                teardownCompareVitalsSizing = null;
+            }
             comparisonModalBody.innerHTML = ''; // Clear existing content
 
             const container = document.createElement('div');
@@ -2177,8 +2182,6 @@ const SEASON_META_HEADERS = {
 
                 nameHeader.appendChild(nameButton);
                 nameHeader.appendChild(tagsRow);
-                const compareVitals = createPlayerVitalsElement(getPlayerVitals(player.id), { variant: 'compare' });
-                nameHeader.appendChild(compareVitals);
                 headerContainer.appendChild(nameHeader);
 
                 playerNamesRow.appendChild(headerContainer);
@@ -2192,6 +2195,7 @@ const SEASON_META_HEADERS = {
             players.forEach(player => {
                 const summaryChipsContainer = document.createElement('div');
                 summaryChipsContainer.className = 'summary-chips-container';
+                const compareVitals = createPlayerVitalsElement(getPlayerVitals(player.id), { variant: 'compare' });
 
                 const overallRankNumber = typeof player.overallRank === 'number' ? player.overallRank : Number(player.overallRank);
                 const overallRankDisplay = Number.isFinite(overallRankNumber)
@@ -2257,6 +2261,7 @@ const SEASON_META_HEADERS = {
                     </div>
                   </div>
                 `;
+                summaryChipsContainer.insertAdjacentElement('afterbegin', compareVitals);
                 summaryChipsRow.appendChild(summaryChipsContainer);
             });
 
@@ -2584,6 +2589,21 @@ const SEASON_META_HEADERS = {
 
             container.appendChild(tableContainer);
             comparisonModalBody.appendChild(container);
+
+            const alignVitalsWidths = () => alignCompareVitalsWidths(summaryChipsRow);
+            const scheduleAlignment = () => {
+                requestAnimationFrame(() => {
+                    alignVitalsWidths();
+                    requestAnimationFrame(alignVitalsWidths);
+                });
+            };
+            scheduleAlignment();
+            window.addEventListener('resize', alignVitalsWidths);
+            const delayedAlignTimeout = window.setTimeout(alignVitalsWidths, 160);
+            teardownCompareVitalsSizing = () => {
+                window.removeEventListener('resize', alignVitalsWidths);
+                window.clearTimeout(delayedAlignTimeout);
+            };
 
             const footer = playerComparisonModal.querySelector('.modal-footer');
             const keyContainer = document.getElementById('comparison-stats-key-container');
@@ -3450,6 +3470,27 @@ const SEASON_META_HEADERS = {
             return container;
         }
 
+        function alignCompareVitalsWidths(root = document) {
+            const summaryContainers = root.querySelectorAll('.summary-chips-container');
+            summaryContainers.forEach(container => {
+                const vitals = container.querySelector('.player-vitals--compare');
+                if (!vitals) {
+                    return;
+                }
+                const firstChip = container.querySelector('.summary-chip');
+                if (!firstChip) {
+                    vitals.style.width = '';
+                    return;
+                }
+                const { width } = firstChip.getBoundingClientRect();
+                if (width > 0) {
+                    vitals.style.width = `${width}px`;
+                } else {
+                    vitals.style.width = '';
+                }
+            });
+        }
+
         function getRankColor(rank) {
             if (typeof rank !== 'number') return 'var(--color-text-primary)';
             const thresholds = [
@@ -3607,6 +3648,10 @@ const SEASON_META_HEADERS = {
                 playerComparisonModal.classList.add('hidden');
                 if (comparisonBackgroundOverlay) {
                     comparisonBackgroundOverlay.classList.add('hidden');
+                }
+                if (typeof teardownCompareVitalsSizing === 'function') {
+                    teardownCompareVitalsSizing();
+                    teardownCompareVitalsSizing = null;
                 }
                 const comparisonModalBody = document.getElementById('comparison-modal-body');
                 if (comparisonModalBody) {
