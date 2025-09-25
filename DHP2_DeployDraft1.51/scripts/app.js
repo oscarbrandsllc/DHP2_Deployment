@@ -2949,14 +2949,18 @@ const SEASON_META_HEADERS = {
               <button id="collapseTradeButton"><i class="fa-solid fa-caret-down"></i></button>
             </div>
             <div class="trade-header-right">
-            <button id="comparePlayersButton" class="control-button-subtle">
-              <i class="fa-solid fa-chart-simple"></i>
-              <span class="label">Compare</span>
-            </button>
+              <button id="comparePlayersButton" class="control-button-subtle">
+                <i class="fa-solid fa-chart-simple"></i>
+                <span class="label">Compare</span>
+              </button>
               <button id="clearTradeButton" type="button">
-              <i class="fa-solid fa-eraser"></i>
-              <span class="label">Clear</span>
-            </button>
+                <i class="fa-solid fa-eraser"></i>
+                <span class="label">Clear</span>
+              </button>
+              <button id="closeTradeButton" type="button">
+                <i class="fa-solid fa-circle-xmark"></i>
+                <span class="label">Close</span>
+              </button>
             </div>
           </div>
         
@@ -3053,6 +3057,12 @@ const SEASON_META_HEADERS = {
             tradeSimulator.classList.toggle('collapsed', state.isTradeCollapsed);
 
             document.getElementById('clearTradeButton').addEventListener('click', clearTrade);
+            const closeTradeButton = document.getElementById('closeTradeButton');
+            if (closeTradeButton) {
+                closeTradeButton.addEventListener('click', () => {
+                    handleClearCompare(true);
+                });
+            }
             document.getElementById('collapseTradeButton').addEventListener('click', () => {
                 tradeSimulator.classList.add('collapsed');
                 state.isTradeCollapsed = true;
