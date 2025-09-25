@@ -1163,7 +1163,8 @@
         }
         
     /* · · ↻ CLEAR Trade Button · · */
-        #clearTradeButton {
+        #clearTradeButton,
+        #closeTradeButton {
           display: flex;
           flex-direction: column;    /* icon on top, label below */
           align-items: center;
@@ -1182,15 +1183,17 @@
           min-height: 0;
         }
         
-        #clearTradeButton i {
+        #clearTradeButton i,
+        #closeTradeButton i {
           display: block;
           margin: 0;
           line-height: 1;
           font-size: 1rem;        /* tweak to match compare button icon weight */
         }
-        
+
         /* Label — pulled up to visually touch the icon */
-        #clearTradeButton .label {
+        #clearTradeButton .label,
+        #closeTradeButton .label {
           display: block;
           margin: -2px 0 0 0;        /* pull label up; adjust -1 / -3 px if needed */
           padding: 0;
@@ -1199,10 +1202,11 @@
           line-height: 1;
           color: inherit;
         }
-        
-        
-        
-        #clearTradeButton:hover {
+
+
+
+        #clearTradeButton:hover,
+        #closeTradeButton:hover {
             color: var(--color-text-secondary);
             border-color: var(--color-panel-border-glow);
         }
@@ -5115,6 +5119,7 @@ body[data-page="research"] .app-header {
   display: none;
 }
 
+
 .syop-line-legend {
   display: flex;
   flex-wrap: wrap;
@@ -5134,6 +5139,54 @@ body[data-page="research"] .app-header {
   width: 0.75rem;
   height: 0.75rem;
   border-radius: 999px;
+}
+
+.draft-round-chip-wrapper {
+  margin-top: 0.65rem;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.draft-round-chip-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--round-count, 1), minmax(0, 1fr));
+  gap: 0.75rem;
+  width: 100%;
+  margin: 0 auto;
+  justify-items: center;
+}
+
+.draft-round-chip-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.draft-round-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 6px 12px rgba(9, 11, 24, 0.35);
+  background: rgba(70, 231, 255, 0.16);
+}
+
+.draft-round-chip .chip-pos {
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 0.65rem;
+  letter-spacing: 0.05em;
+}
+
+.draft-round-chip .chip-value {
+  font-weight: 700;
 }
 
 .draft-round-tiles {
@@ -5257,6 +5310,15 @@ body[data-page="research"] .app-header {
   .syop-hero-meta {
     gap: 0.28rem;
     align-items: center;
+  }
+
+  .draft-round-chip-grid {
+    gap: 0.55rem;
+  }
+
+  .draft-round-chip {
+    font-size: 0.65rem;
+    padding: 0.26rem 0.5rem;
   }
 
   .syop-hero-meta-item {
