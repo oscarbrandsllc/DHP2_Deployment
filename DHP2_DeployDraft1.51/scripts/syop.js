@@ -137,6 +137,12 @@
     { key: 'WR', color: '#46E7FF' }
   ];
 
+  const DRAFT_OVERALL_MAX = Math.max(...DRAFT_OVERALL.map((row) => row.hit));
+  const DRAFT_POSITIONAL_MAX = Math.max(
+    ...DRAFT_POSITIONAL.flatMap((row) => DRAFT_SERIES.map((series) => Number(row[series.key]) || 0))
+  );
+  const DRAFT_CHART_NICE_MAX = Math.max(10, Math.ceil(Math.max(DRAFT_OVERALL_MAX, DRAFT_POSITIONAL_MAX) / 10) * 10);
+
   const SERIES_CONFIG = [
     { key: 'QB %', label: 'QB %', color: colors.qb },
     { key: 'RB %', label: 'RB %', color: colors.rb },
@@ -280,7 +286,13 @@
             el.dataset[dKey] = dValue;
           });
         } else if (key === 'style' && typeof value === 'object') {
-          Object.assign(el.style, value);
+          Object.entries(value).forEach(([styleKey, styleValue]) => {
+            if (styleKey.startsWith('--')) {
+              el.style.setProperty(styleKey, styleValue);
+            } else {
+              el.style[styleKey] = styleValue;
+            }
+          });
         } else if (key in el) {
           try {
             el[key] = value;
@@ -1044,8 +1056,7 @@
     svg.appendChild(g);
 
     const groupWidth = chartWidth / DRAFT_OVERALL.length;
-    const maxValue = Math.max(...DRAFT_OVERALL.map((row) => row.hit));
-    const niceMax = Math.ceil(maxValue / 10) * 10;
+    const niceMax = DRAFT_CHART_NICE_MAX || 10;
 
     const ticks = [];
     for (let value = 0; value <= niceMax + 0.0001; value += 10) {
@@ -1166,16 +1177,23 @@
         createEl('span', { class: 'legend-label' }, series.key)
       ));
     });
-    container.appendChild(legend);
+
+    const legendHost = document.getElementById('draft-positional-legend');
+    if (legendHost) {
+      legendHost.innerHTML = '';
+      legendHost.appendChild(legend);
+    } else {
+      container.appendChild(legend);
+    }
 
     const containerWidth = container.clientWidth || 0;
     const fallbackWidth = 360;
     const width = containerWidth > 0 ? containerWidth : fallbackWidth;
-    const height = width < 540 ? 300 : 360;
-    const isCompact = width < 560;
-    const margin = width < 540
-      ? { top: 52, right: 20, bottom: 48, left: 54 }
-      : { top: 52, right: 28, bottom: 56, left: 68 };
+    const isCompact = width < 520;
+    const height = isCompact ? 300 : 320;
+    const margin = isCompact
+      ? { top: 48, right: 20, bottom: 56, left: 54 }
+      : { top: 32, right: 24, bottom: 56, left: 60 };
     const chartWidth = width - margin.left - margin.right;
     const chartHeight = height - margin.top - margin.bottom;
     const svg = createSVG('svg', {
@@ -1189,10 +1207,14 @@
 
     const rounds = DRAFT_POSITIONAL.map((row) => row.rd);
     const stepX = chartWidth / (rounds.length - 1 || 1);
-    const yTicks = [0, 20, 40, 60, 80, 100];
+    const niceMax = DRAFT_CHART_NICE_MAX || 10;
+    const yTicks = [];
+    for (let value = 0; value <= niceMax + 0.0001; value += 10) {
+      yTicks.push(value);
+    }
 
     yTicks.forEach((tick) => {
-      const y = chartHeight - (tick / 100) * chartHeight;
+      const y = chartHeight - (tick / niceMax) * chartHeight;
       g.appendChild(createSVG('line', {
         x1: 0,
         x2: chartWidth,
@@ -1213,7 +1235,7 @@
       const x = index * stepX;
       g.appendChild(createSVG('text', {
         x,
-        y: chartHeight + 28,
+        y: chartHeight + 26,
         fill: colors.subtext,
         'font-size': '12',
         'text-anchor': 'middle'
@@ -1225,7 +1247,7 @@
     DRAFT_SERIES.forEach((series) => {
       const points = DRAFT_POSITIONAL.map((row, index) => ({
         x: index * stepX,
-        y: chartHeight - (row[series.key] / 100) * chartHeight,
+        y: chartHeight - ((Number(row[series.key]) || 0) / niceMax) * chartHeight,
         value: row[series.key],
         roundIndex: index
       }));
@@ -1258,6 +1280,14 @@
       y2: chartHeight,
       stroke: 'rgba(255,255,255,0.18)'
     }));
+
+    g.appendChild(createSVG('text', {
+      x: chartWidth / 2,
+      y: chartHeight + 42,
+      fill: colors.subtext,
+      'font-size': '12',
+      'text-anchor': 'middle'
+    }, document.createTextNode('Draft Round')));
 
     container.appendChild(svg);
 
