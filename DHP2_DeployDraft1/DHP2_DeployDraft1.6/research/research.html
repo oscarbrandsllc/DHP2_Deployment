@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Research • Dynasty Hub</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@200;300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Product+Sans:wght@100;200;300;400;500;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css?family=Google+Sans:100,200,300,400,500,600,700" rel="stylesheet"/>
+<link href="../manifest.webmanifest?v=20250827002411?v=20250826235225" rel="manifest"/>
+<link rel="apple-touch-icon" sizes="180x180" href="../assets/icons/apple-touch-icon-180.png?v=20250827002411?v=20250826235225" />
+<meta content="#0D0E1B" name="theme-color"/>
+<link href="../styles/styles.css?v=20250827002411?v=20250826235225" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="icon" type="image/png" sizes="32x32" href="../assets/icons/favicon-32.png?v=20250827002411?v=20250826235225" />
+<link rel="icon" type="image/png" sizes="16x16" href="../assets/icons/favicon-16.png?v=20250827002411?v=20250826235225" />
+<link rel="shortcut icon" href="../assets/icons/favicon.ico?v=20250827002411?v=20250826235225" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer"/>
+</head>
+<body data-page="research" class="p-2 sm:p-4">
+<div aria-hidden="true" id="starfield">
+  <div id="stars"></div>
+  <div id="stars1"></div>
+  <div id="stars2"></div>
+  <div id="stars3"></div>
+</div>
+<div id="noise-overlay"></div>
+<div class="relative z-10 content-wrapper">
+  <div id="header-container">
+    <header class="app-header glass-panel">
+      <div class="header-row">
+        <div class="menu-container">
+          <button id="menu-button" class="menu-button" aria-label="Toggle navigation">
+            <svg viewBox="0 0 100 80" width="20" height="20" aria-hidden="true">
+              <rect width="100" height="15"></rect>
+              <rect y="30" width="100" height="15"></rect>
+              <rect y="60" width="100" height="15"></rect>
+            </svg>
+          </button>
+          <div id="dropdown-menu" class="dropdown-menu hidden">
+            <a href="../index.html">
+              <i class="fa-solid fa-house-user" aria-hidden="true"></i>
+              <span>Home</span>
+            </a>
+            <a href="#" id="menu-rosters">
+              <i class="fa-solid fa-clipboard-list" aria-hidden="true"></i>
+              <span>Rosters</span>
+            </a>
+            <a href="#" id="menu-ownership">
+              <i class="fa-solid fa-percent" aria-hidden="true"></i>
+              <span>Ownership</span>
+            </a>
+            <a href="#" id="menu-research" class="active">
+              <i class="fa-solid fa-flask" aria-hidden="true"></i>
+              <span>Research</span>
+            </a>
+            <a href="#" id="menu-analyzer">
+              <i class="fa-solid fa-square-poll-vertical" aria-hidden="true"></i>
+              <span>League Analyzer</span>
+            </a>
+          </div>
+        </div>
+        <div class="username-area">
+          <input autocapitalize="none" autocomplete="username" autocorrect="off" id="usernameInput" inputmode="text" name="username" placeholder="SLPR Username..." type="text" value="The_Oracle"/>
+        </div>
+        <div class="app-view-switcher primary-switcher">
+          <button id="fetchRostersButton">Rosters</button>
+          <button id="fetchOwnershipButton">Ownership %</button>
+        </div>
+      </div>
+    </header>
+  </div>
+  <main class="container mx-auto syop-main" id="content">
+    <div class="syop-tabs" role="tablist" aria-label="Research dashboards">
+      <button class="syop-tab active" id="syop-tab-button" type="button" role="tab" aria-selected="true" tabindex="0" data-target="syop-tab-panel">SYOP</button>
+      <button class="syop-tab" id="draft-tab-button" type="button" role="tab" aria-selected="false" tabindex="-1" data-target="draft-tab-panel">NFL Draft &mdash; Player Hit Rates</button>
+    </div>
+
+    <div class="syop-tab-panels">
+      <section class="syop-section syop-tab-panel active" id="syop-tab-panel" role="tabpanel" aria-labelledby="syop-tab-button">
+        <section class="syop-hero">
+          <div class="syop-hero-intro">
+            <div class="syop-pill">Dynasty Hub Research</div>
+            <h1>Significant Years of Production (SYOP)</h1>
+          </div>
+          <div class="syop-hero-summary">
+            <div class="syop-hero-meta">
+              <div class="syop-hero-meta-item">
+                <span class="meta-label">SAMPLE SIZE AND QUALIFYING YEARS:</span>
+                <span class="meta-value">297 players &bull; 2008 &ndash; 2018</span>
+              </div>
+              <div class="syop-hero-meta-item">
+                <span class="meta-label">QUALIFICATION:</span>
+                <span class="meta-value">Hitting indicated Threshold ≥ 1 time within the qualifying years</span>
+              </div>
+              <div class="syop-hero-meta-item">
+                <span class="meta-label">THRESHOLDS:</span>
+                <span class="meta-value">[PPR FPTS | QB ≥ 179 &bull; RB ≥ 182 &bull; WR ≥ 176 &bull; TE ≥ 161]</span>
+              </div>
+              <div class="syop-hero-meta-item">
+                <span class="meta-label">BENCHMARKS:</span>
+                <span class="meta-value">Thresholds from avg minimum QB2, RB2, WR2, TE1 PPR finishes</span>
+              </div>
+            </div>
+          </div>
+        </section>
+        <div class="sr-only" id="syop-infographic-heading">SYOP Infographic</div>
+        <div class="syop-panels-grid">
+          <article class="syop-panel glass-panel" id="syop-sunburst-panel">
+            <header>
+              <h3>AVG [Mean | Λ] · Majority [Mode | M]</h3>
+              <p>(per-position breakdown)</p>
+            </header>
+            <div id="syop-sunburst" class="syop-panel-body"></div>
+          </article>
+          <div class="syop-panel syop-gauges glass-panel" id="syop-gauges" aria-label="Average SYOP gauges"></div>
+          <section class="syop-key-legend" aria-label="SYOP metrics key">
+            <div class="syop-key-grid">
+              <div class="syop-hero-card">
+                <span class="label">SYOP [S]</span>
+                <span class="value value-desktop">Significant Year(s) of Production</span>
+                <span class="value value-mobile">Significant Year(s)<br />of Production</span>
+              </div>
+              <div class="syop-hero-card">
+                <span class="label">BoA [B]</span>
+                <span class="value value-desktop">Breakout &mdash; player&rsquo;s initial SYOP</span>
+                <span class="value value-mobile">Breakout ～<br />Initial SYOP</span>
+              </div>
+              <div class="syop-hero-card">
+                <span class="label">Mean [Λ]</span>
+                <span class="value value-desktop">Average qualifying production span</span>
+                <span class="value value-mobile">Average</span>
+              </div>
+              <div class="syop-hero-card">
+                <span class="label">Mode [M]</span>
+                <span class="value value-desktop">Most frequent season count</span>
+                <span class="value value-mobile">Majority Value /<br />Most Frequent #</span>
+              </div>
+            </div>
+          </section>
+          <article class="syop-panel syop-panel-wide glass-panel" id="syop-bar-panel">
+            <header>
+              <h3>Positional | Significant Years of Production</h3>
+              <p>(% of position within each SYOP bucket)</p>
+            </header>
+            <div class="syop-panel-body">
+              <div class="syop-chart" id="syop-bar-chart" role="img" aria-label="SYOP positional distribution chart"></div>
+            </div>
+          </article>
+        </div>
+        <p class="syop-footnote">Data sourced from Dynasty Hub SYOP research feeds. Visualization rebuilt for the League HQ experience.</p>
+      </section>
+
+      <section class="syop-section syop-tab-panel" id="draft-tab-panel" role="tabpanel" aria-labelledby="draft-tab-button" hidden>
+        <section class="syop-hero syop-draft-hero" aria-labelledby="draft-data-heading">
+          <div class="syop-hero-intro">
+            <div class="syop-pill">NFL Draft Research</div>
+            <h2 id="draft-data-heading">NFL Draft &mdash; Player Hit Rates</h2>
+            <p>Overall and positional hit probabilities across draft rounds.</p>
+          </div>
+          <div class="syop-hero-summary">
+            <div class="syop-hero-meta syop-draft-meta">
+              <div class="syop-hero-meta-item">
+                <span class="meta-label">SAMPLE:</span>
+                <span class="meta-value">2008-2022 Draft Classes   |   Rounds 1-7  </span>
+              </div>
+              <div class="syop-hero-meta-item">
+                <span class="meta-label">POSITIONS:</span>
+                <span class="meta-value">QB &bull; RB &bull; WR &bull; TE</span>
+              </div>
+            </div>
+          </div>
+        </section>
+        <div class="syop-panels-grid syop-draft-grid">
+          <article class="syop-panel glass-panel" id="draft-overall-panel">
+            <header>
+              <h3>Overall Hit Probability</h3>
+              <p>All positions &times; round</p>
+            </header>
+            <div class="syop-panel-body">
+              <div class="syop-chart" id="draft-overall-chart" role="img" aria-label="Overall draft hit probability bar chart"></div>
+              <div class="draft-round-tiles" id="draft-round-tiles"></div>
+            </div>
+          </article>
+          <article class="syop-panel glass-panel" id="draft-positional-panel">
+            <header>
+              <h3>Positional Hit Rate Trends by Round</h3>
+              <div class="syop-panel-subhead" id="draft-positional-legend"></div>
+            </header>
+            <div class="syop-panel-body">
+              <div class="syop-chart" id="draft-positional-chart" role="img" aria-label="Positional draft hit rate line chart"></div>
+              <p class="syop-chart-footnote">Values reflect provided hit-rate percentages for each round.</p>
+            </div>
+          </article>
+        </div>
+        <div class="draft-pill">HIT RATE &bull; All Positions &amp; By Position</div>
+      </section>
+    </div>
+  </main>
+</div>
+<script defer src="../scripts/app.js?v=20250826235225"></script>
+<script defer src="../scripts/syop.js?v=20250826235225"></script>
+</body>
+</html>
