@@ -5129,6 +5129,17 @@ body[data-page="research"] .app-header {
   margin-bottom: 0.75rem;
 }
 
+.syop-line-legend--header {
+  margin: 0.28rem 0 0;
+  gap: 0.65rem;
+}
+
+.syop-line-legend--header .legend-item {
+  font-size: 0.78rem;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
 .legend-item {
   display: inline-flex;
   align-items: center;
@@ -5141,6 +5152,16 @@ body[data-page="research"] .app-header {
   width: 0.75rem;
   height: 0.75rem;
   border-radius: 999px;
+}
+
+.draft-positional-legend-slot {
+  min-height: 1.6rem;
+  display: flex;
+  align-items: center;
+}
+
+.draft-positional-legend-slot:empty {
+  min-height: 0;
 }
 
 .draft-round-chip-container {

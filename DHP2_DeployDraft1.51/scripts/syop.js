@@ -137,6 +137,19 @@
     { key: 'WR', color: '#46E7FF' }
   ];
 
+  const DRAFT_ALL_VALUES = [
+    ...DRAFT_OVERALL.map((row) => Number(row.hit) || 0),
+    ...DRAFT_POSITIONAL.flatMap((row) => DRAFT_SERIES.map((series) => Number(row[series.key]) || 0))
+  ];
+
+  const DRAFT_NICE_MAX = (() => {
+    const maxValue = Math.max(...DRAFT_ALL_VALUES, 0);
+    if (!Number.isFinite(maxValue) || maxValue <= 0) {
+      return 100;
+    }
+    return Math.ceil(maxValue / 10) * 10;
+  })();
+
   const SERIES_CONFIG = [
     { key: 'QB %', label: 'QB %', color: colors.qb },
     { key: 'RB %', label: 'RB %', color: colors.rb },
@@ -280,7 +293,14 @@
             el.dataset[dKey] = dValue;
           });
         } else if (key === 'style' && typeof value === 'object') {
-          Object.assign(el.style, value);
+          Object.entries(value).forEach(([styleKey, styleValue]) => {
+            if (styleValue == null) return;
+            if (styleKey.startsWith('--')) {
+              el.style.setProperty(styleKey, styleValue);
+            } else {
+              el.style[styleKey] = styleValue;
+            }
+          });
         } else if (key in el) {
           try {
             el[key] = value;
@@ -1013,6 +1033,17 @@
     return `M ${start.x} ${start.y} A ${radius} ${radius} 0 ${large} 1 ${end.x} ${end.y}`;
   }
 
+  function getDraftChartDimensions(width) {
+    const isCompact = width < 560;
+    return {
+      isCompact,
+      height: isCompact ? 300 : 360,
+      margin: isCompact
+        ? { top: 36, right: 18, bottom: 60, left: 56 }
+        : { top: 52, right: 28, bottom: 64, left: 68 }
+    };
+  }
+
   function renderDraftOverall() {
     const container = document.getElementById('draft-overall-chart');
     if (!container) return;
@@ -1021,10 +1052,7 @@
     const containerWidth = container.clientWidth || 0;
     const fallbackWidth = 360;
     const width = containerWidth > 0 ? containerWidth : fallbackWidth;
-    const height = width < 520 ? 270 : 320;
-    const margin = width < 520
-      ? { top: 26, right: 14, bottom: 48, left: 46 }
-      : { top: 32, right: 24, bottom: 56, left: 60 };
+    const { height, margin, isCompact } = getDraftChartDimensions(width);
     const chartWidth = width - margin.left - margin.right;
     const chartHeight = height - margin.top - margin.bottom;
     const svg = createSVG('svg', {
@@ -1044,8 +1072,7 @@
     svg.appendChild(g);
 
     const groupWidth = chartWidth / DRAFT_OVERALL.length;
-    const maxValue = Math.max(...DRAFT_OVERALL.map((row) => row.hit));
-    const niceMax = Math.ceil(maxValue / 10) * 10;
+    const niceMax = DRAFT_NICE_MAX;
 
     const ticks = [];
     for (let value = 0; value <= niceMax + 0.0001; value += 10) {
@@ -1091,14 +1118,14 @@
         x: baseX + groupWidth / 2,
         y: y - 8,
         fill: colors.text,
-        'font-size': '12',
+        'font-size': isCompact ? '11' : '12',
         'text-anchor': 'middle',
         'font-weight': '600'
       }, document.createTextNode(`${row.hit.toFixed(1)}%`)));
 
       g.appendChild(createSVG('text', {
         x: baseX + groupWidth / 2,
-        y: chartHeight + 26,
+        y: chartHeight + 28,
         fill: colors.subtext,
         'font-size': '12',
         'text-anchor': 'middle'
@@ -1159,23 +1186,30 @@
     if (!container) return;
     container.innerHTML = '';
 
-    const legend = createEl('div', { class: 'syop-line-legend' });
+    const headerLegendSlot = document.getElementById('draft-positional-legend');
+    if (headerLegendSlot) {
+      headerLegendSlot.innerHTML = '';
+    }
+
+    const legend = createEl('div', { class: 'syop-line-legend syop-line-legend--header' });
     DRAFT_SERIES.forEach((series) => {
       legend.appendChild(createEl('span', { class: 'legend-item' },
         createEl('span', { class: 'legend-swatch', style: { backgroundColor: series.color } }),
         createEl('span', { class: 'legend-label' }, series.key)
       ));
     });
-    container.appendChild(legend);
+
+    if (headerLegendSlot) {
+      headerLegendSlot.appendChild(legend);
+    } else {
+      legend.classList.remove('syop-line-legend--header');
+      container.appendChild(legend);
+    }
 
     const containerWidth = container.clientWidth || 0;
     const fallbackWidth = 360;
     const width = containerWidth > 0 ? containerWidth : fallbackWidth;
-    const height = width < 540 ? 300 : 360;
-    const isCompact = width < 560;
-    const margin = width < 540
-      ? { top: 52, right: 20, bottom: 48, left: 54 }
-      : { top: 52, right: 28, bottom: 56, left: 68 };
+    const { height, margin, isCompact } = getDraftChartDimensions(width);
     const chartWidth = width - margin.left - margin.right;
     const chartHeight = height - margin.top - margin.bottom;
     const svg = createSVG('svg', {
@@ -1189,10 +1223,13 @@
 
     const rounds = DRAFT_POSITIONAL.map((row) => row.rd);
     const stepX = chartWidth / (rounds.length - 1 || 1);
-    const yTicks = [0, 20, 40, 60, 80, 100];
+    const yTicks = [];
+    for (let value = 0; value <= DRAFT_NICE_MAX + 0.0001; value += 10) {
+      yTicks.push(value);
+    }
 
     yTicks.forEach((tick) => {
-      const y = chartHeight - (tick / 100) * chartHeight;
+      const y = chartHeight - (tick / DRAFT_NICE_MAX) * chartHeight;
       g.appendChild(createSVG('line', {
         x1: 0,
         x2: chartWidth,
@@ -1225,7 +1262,7 @@
     DRAFT_SERIES.forEach((series) => {
       const points = DRAFT_POSITIONAL.map((row, index) => ({
         x: index * stepX,
-        y: chartHeight - (row[series.key] / 100) * chartHeight,
+        y: chartHeight - ((row[series.key] || 0) / DRAFT_NICE_MAX) * chartHeight,
         value: row[series.key],
         roundIndex: index
       }));
@@ -1271,6 +1308,7 @@
       class: 'draft-round-chip-grid',
       style: { '--round-count': rounds.length }
     });
+    chipGrid.style.setProperty('--round-count', rounds.length);
 
     rounds.forEach((round, index) => {
       const column = createEl('div', {
