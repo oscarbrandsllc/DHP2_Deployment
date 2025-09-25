@@ -551,19 +551,31 @@ function showLegend(){ try{ document.getElementById('legend-section')?.classList
 
         function handleClearCompare(keepUserTeam = false) {
             const userTeamName = state.currentTeams?.find(team => team.isUserTeam)?.teamName;
-            
+
             const teamsToKeep = new Set();
-            if (keepUserTeam && userTeamName && state.teamsToCompare.has(userTeamName)) {
+            if (keepUserTeam && userTeamName) {
                 teamsToKeep.add(userTeamName);
             }
             state.teamsToCompare = teamsToKeep;
 
+            // Unselect all checkboxes visually
+            const allCheckboxes = rosterGrid.querySelectorAll('.team-compare-checkbox');
+            allCheckboxes.forEach(cb => {
+                const teamName = cb.dataset.teamName;
+                if (!teamsToKeep.has(teamName)) {
+                    cb.classList.remove('selected');
+                } else {
+                    cb.classList.add('selected');
+                }
+            });
+
             state.isCompareMode = false;
             rosterView.classList.remove('is-trade-mode');
             rosterGrid.classList.remove('is-preview-mode');
-            
+
             updateCompareButtonState();
             clearTrade();
+
             if (state.currentTeams) {
                 renderAllTeamData(state.currentTeams);
             }
@@ -2956,7 +2968,11 @@ const SEASON_META_HEADERS = {
               <button id="clearTradeButton" type="button">
               <i class="fa-solid fa-eraser"></i>
               <span class="label">Clear</span>
-            </button>
+              </button>
+              <button id="closeTradeButton" type="button">
+                <i class="fa-solid fa-circle-xmark"></i>
+                <span class="label">Close</span>
+              </button>
             </div>
           </div>
         
@@ -3053,6 +3069,7 @@ const SEASON_META_HEADERS = {
             tradeSimulator.classList.toggle('collapsed', state.isTradeCollapsed);
 
             document.getElementById('clearTradeButton').addEventListener('click', clearTrade);
+            document.getElementById('closeTradeButton').addEventListener('click', () => handleClearCompare(true));
             document.getElementById('collapseTradeButton').addEventListener('click', () => {
                 tradeSimulator.classList.add('collapsed');
                 state.isTradeCollapsed = true;
