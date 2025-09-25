@@ -4771,6 +4771,26 @@ body[data-page="research"] .app-header {
   font-size: 0.86rem;
 }
 
+.syop-panel-subhead {
+  margin: 0.22rem 0 0.55rem;
+  color: rgba(182, 185, 214, 0.78);
+  font-size: 0.86rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1.1rem;
+  align-items: center;
+}
+
+.syop-panel-subhead .syop-line-legend {
+  margin: 0;
+  gap: 0.75rem;
+}
+
+.syop-panel-subhead .legend-item {
+  font-size: 0.8rem;
+  color: rgba(226, 231, 255, 0.92);
+}
+
 .syop-draft-hero {
   margin-bottom: 1.35rem;
   gap: 0.9rem 1.45rem;
