@@ -137,13 +137,6 @@
     { key: 'WR', color: '#46E7FF' }
   ];
 
-  const SERIES_LABEL_OFFSETS = {
-    QB: {},
-    RB: {},
-    TE: {},
-    WR: {}
-  };
-
   const SERIES_CONFIG = [
     { key: 'QB %', label: 'QB %', color: colors.qb },
     { key: 'RB %', label: 'RB %', color: colors.rb },
@@ -1228,8 +1221,6 @@
     });
 
     const dotRadius = isCompact ? 3.6 : 4.4;
-    const labelEntries = [];
-    const roundLabelGroups = rounds.map(() => []);
 
     DRAFT_SERIES.forEach((series) => {
       const points = DRAFT_POSITIONAL.map((row, index) => ({
@@ -1248,10 +1239,6 @@
       });
       g.appendChild(path);
 
-      const offsetConfig = SERIES_LABEL_OFFSETS[series.key] || null;
-      const labelAnchor = offsetConfig?.anchor || 'middle';
-      const offsetX = offsetConfig?.dx || 0;
-
       points.forEach((point) => {
         g.appendChild(createSVG('circle', {
           cx: point.x,
@@ -1259,100 +1246,9 @@
           r: String(dotRadius),
           fill: colors.bg,
           stroke: series.color,
-          'stroke-width': '2'
-        }));
-
-        const entry = {
-          series,
-          point,
-          offsetX,
-          anchor: labelAnchor,
-          text: `${point.value}%`,
-          value: point.value,
-          offsetY: 0
-        };
-
-        labelEntries.push(entry);
-        roundLabelGroups[point.roundIndex].push(entry);
-      });
-    });
-
-    const labelFontSize = isCompact ? 9.5 : 10.5;
-    const labelPadding = { x: 5, y: 3 };
-    const labelHeight = labelFontSize + 2 * labelPadding.y;
-    const verticalGap = 4;
-
-    roundLabelGroups.forEach(entries => {
-      if (entries.length < 2) return;
-
-      const sorted = entries.slice().sort((a, b) => a.point.y - b.point.y);
-      const clusters = [];
-      if (sorted.length > 0) {
-        let currentCluster = [sorted[0]];
-        clusters.push(currentCluster);
-
-        for (let i = 1; i < sorted.length; i++) {
-          if (sorted[i].point.y - sorted[i - 1].point.y < labelHeight * 1.25) {
-            currentCluster.push(sorted[i]);
-          } else {
-            currentCluster = [sorted[i]];
-            clusters.push(currentCluster);
-          }
-        }
-      }
-
-      clusters.forEach(cluster => {
-        if (cluster.length < 2) return;
-
-        const clusterMidY = cluster.reduce((sum, e) => sum + e.point.y, 0) / cluster.length;
-        const totalHeight = cluster.length * labelHeight + (cluster.length - 1) * verticalGap;
-        let startY = clusterMidY - totalHeight / 2;
-
-        cluster.forEach(entry => {
-          entry.finalY = startY + labelHeight / 2;
-          startY += labelHeight + verticalGap;
-          entry.offsetY = entry.finalY - entry.point.y;
-        });
-      });
-    });
-
-    labelEntries.forEach(entry => {
-      const textWidth = entry.text.length * labelFontSize * 0.58 + 4;
-      const rectWidth = textWidth + 2 * labelPadding.x;
-      const rectHeight = labelHeight;
-      const yPos = entry.point.y + (entry.offsetY || 0);
-
-      const labelGroup = createSVG('g', {
-        transform: `translate(${entry.point.x}, ${yPos})`,
-        class: 'draft-label-chip'
-      });
-
-      labelGroup.appendChild(createSVG('rect', {
-        x: -rectWidth / 2,
-        y: -rectHeight / 2,
-        width: rectWidth,
-        height: rectHeight,
-        rx: 5,
-        ry: 5,
-        fill: hexToRgba(colors.bg, 0.4),
-        stroke: hexToRgba(entry.series.color, 0.55),
-        'stroke-width': '1.5'
+        'stroke-width': '2'
       }));
-
-      labelGroup.appendChild(createSVG('text', {
-        x: 0,
-        y: 0,
-        fill: entry.series.color,
-        'font-size': `${labelFontSize}px`,
-        'font-weight': '700',
-        'text-anchor': 'middle',
-        'dominant-baseline': 'central',
-        'paint-order': 'stroke',
-        stroke: 'rgba(11, 14, 22, 0.85)',
-        'stroke-width': '2.5',
-        'stroke-linecap': 'round'
-      }, document.createTextNode(entry.text)));
-      g.appendChild(labelGroup);
+      });
     });
 
     g.appendChild(createSVG('line', {
@@ -1364,6 +1260,41 @@
     }));
 
     container.appendChild(svg);
+
+    const chipWrapper = createEl('div', { class: 'draft-round-chip-wrapper' });
+    const chipGrid = createEl('div', { class: 'draft-round-chip-grid' });
+    chipGrid.style.setProperty('--round-count', String(rounds.length));
+    chipGrid.style.gridTemplateColumns = `repeat(${rounds.length}, minmax(0, 1fr))`;
+    chipGrid.style.maxWidth = `${width}px`;
+    chipWrapper.appendChild(chipGrid);
+
+    DRAFT_POSITIONAL.forEach((row) => {
+      const column = createEl('div', { class: 'draft-round-chip-column' });
+      const entries = DRAFT_SERIES
+        .map((series) => ({
+          series,
+          value: row[series.key] ?? 0
+        }))
+        .sort((a, b) => b.value - a.value);
+
+      entries.forEach(({ series, value }) => {
+        const chip = createEl('div', {
+          class: 'draft-round-chip',
+          style: {
+            borderColor: hexToRgba(series.color, 0.55),
+            background: hexToRgba(series.color, 0.18),
+            color: series.color
+          }
+        },
+        createEl('span', { class: 'chip-pos' }, series.key),
+        createEl('span', { class: 'chip-value' }, `${value}%`));
+        column.appendChild(chip);
+      });
+
+      chipGrid.appendChild(column);
+    });
+
+    container.appendChild(chipWrapper);
   }
 
   function handleResize() {
